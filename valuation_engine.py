@@ -62,7 +62,9 @@ def calculate_valuation(inputs):
     ingresos_base = inputs['revenue_base_year']
     ingresos = [ingresos_base, ingresos_base] # Year 0 and 0A have same revenue
     
-    ingresos.append(ingresos_base) # Year 1
+    # Year 1 Revenue applies the Year 1 Growth Rate to the Base
+    tasa_crecimiento_yr1 = agr_rate_list[0]
+    ingresos.append(ingresos_base * (1 + tasa_crecimiento_yr1)) 
     
     for i in range(1, 10):
         tasa_crecimiento = agr_rate_list[i]
@@ -74,20 +76,19 @@ def calculate_valuation(inputs):
     df = pd.DataFrame({"Periodo": labels, "Ingresos": ingresos})
     
     # Anual_growth_rate
-    agr_visual = [0, 0, 0] + agr_rate_list[1:] + [inputs['RFR']]
+    agr_visual = [0, 0] + agr_rate_list + [inputs['RFR']]
     df["Anual_growth_rate"] = agr_visual
     
     # Margins & EBIT (Operating_income)
     ebit = [
         inputs['income_base_year'],                     # Año 0
         inputs['income_base_year'] + rd_income_adjust,  # Año 0A
-        inputs['income_base_year'] + rd_income_adjust   # Año 1
     ]
-    for i in range(1, 10):
-        ebit.append(ingresos[i+2] * op_margin_list[i]) # Año 2-10
+    for i in range(0, 10):
+        ebit.append(ingresos[i+2] * op_margin_list[i]) # Año 1-10
     ebit.append(ingresos[-1] * inputs['terminal_operating_margin']) # Terminal
     
-    margen_operacional = [0, 0] + [ebit[2] / ingresos[2] if ingresos[2] != 0 else 0] + op_margin_list[1:] + [inputs['terminal_operating_margin']]
+    margen_operacional = [0, 0] + op_margin_list + [inputs['terminal_operating_margin']]
     
     df["Operating_margin"] = margen_operacional
     df["Operating_income"] = ebit
@@ -97,10 +98,9 @@ def calculate_valuation(inputs):
     taxes = [
         inputs['income_base_year'] * et_rate_base, # Año 0
         (inputs['income_base_year'] + rd_income_adjust) * et_rate_base, # Año 0A
-        (inputs['income_base_year'] + rd_income_adjust) * et_rate_base  # Año 1
     ]
-    for i in range(3, 12):
-        taxes.append(ebit[i] * et_rate_list[i-2]) # Año 2-10
+    for i in range(2, 12):
+        taxes.append(ebit[i] * et_rate_list[i-2]) # Año 1-10
     taxes.append(ebit[12] * inputs['marginal_tax_rate']) # Terminal
     df["TAXES"] = taxes
     
@@ -109,8 +109,7 @@ def calculate_valuation(inputs):
     
     # Reinvestment & StCR
     sales_to_capital = [sales_to_capital_ratio_base, sales_to_capital_ratio_adj]
-    actual_stcr_list = [sales_to_capital_ratio_adj] + stcr_list[1:]
-    sales_to_capital.extend(actual_stcr_list)
+    sales_to_capital.extend(stcr_list)
     sales_to_capital.append(0) # Terminal
     
     reinvestment = [0, 0] # Year 0 and 0A
