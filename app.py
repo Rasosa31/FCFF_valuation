@@ -302,7 +302,8 @@ if 'df' in st.session_state and 'results' in st.session_state:
             'FCFF': '${:,.0f}',
             'pv_FCFF': '${:,.0f}',
             'Inv_Capital': '${:,.0f}',
-            'ROIC': '{:.2%}'
+            'ROIC': '{:.2%}',
+            'WACC': '{:.2%}'
         }
         st.dataframe(df.style.format(format_dict), height=500)
 

@@ -164,6 +164,9 @@ def calculate_valuation(inputs):
     FCFF_terminal = FCFF[12]
     term_wacc = inputs.get('terminal_wacc', wacc) # Fallback to WACC if not provided
     
+    wacc_col = [wacc, wacc] + [wacc] * 10 + [term_wacc]
+    df["WACC"] = wacc_col
+    
     term_discount = term_wacc - inputs['RFR']
     if term_discount <= 0.0001:
         term_discount = 0.0001
