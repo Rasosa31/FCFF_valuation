@@ -70,6 +70,12 @@ def to_excel(df, results, inputs, company_name, valuation_date):
             mc_df = pd.DataFrame(list(st.session_state['mc_stats'].items()), columns=['Statistic', 'Value ($)'])
             mc_df.to_excel(writer, index=False, sheet_name='06_Montecarlo_Stats')
 
+        # Sheet 8: Notes (if present)
+        notes = st.session_state.get('user_notes', '')
+        if notes.strip() != '':
+            notes_df = pd.DataFrame({"Notas Generales y Conclusiones": [notes]})
+            notes_df.to_excel(writer, index=False, sheet_name='07_Notes')
+
     return output.getvalue()
 
 st.set_page_config(page_title="FCFF Valuation App", layout="wide")
@@ -223,9 +229,10 @@ if 'df' in st.session_state and 'results' in st.session_state:
     df = st.session_state['df']
     results = st.session_state['results']
     
-    tab1, tab2, tab3, tab8, tab4, tab5, tab6, tab7 = st.tabs([
+    tab1, tab2, tab3, tab8, tab4, tab5, tab6, tab7, tab9 = st.tabs([
         "Dashboard", "Cashflow Projections", "Montecarlo Simulation", "Detalle y Valor (Bridge)",
-        "WACC Detail", "Sales to Capital Detail", "R&D Adjustment Detail", "Value Options Detail"
+        "WACC Detail", "Sales to Capital Detail", "R&D Adjustment Detail", "Value Options Detail",
+        "Notas & Análisis"
     ])
     
     with tab1:
@@ -461,5 +468,10 @@ if 'df' in st.session_state and 'results' in st.session_state:
         })
         st.table(opt_df.style.set_properties(**{'text-align': 'left'}))
                         
+    with tab9:
+        st.header("Anotaciones y Perfil de la Empresa")
+        st.markdown("Documenta aquí la descripción de la empresa, tu tesis de inversión y las conclusiones principales. Estas notas se incluirán automáticamente en una pestaña adicional al exportar el archivo de Excel.")
+        st.text_area("Tesis, Riesgos y Conclusiones:", height=400, key="user_notes")
+
 else:
     st.info("Adjust the values on the sidebar and click 'Run Valuation' to see results.")
