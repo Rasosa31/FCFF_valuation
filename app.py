@@ -147,6 +147,12 @@ st.sidebar.subheader("4. Market & Equity")
 shares_outstanding = float_input("Shares Outstanding", 2941.6, "shares", format="%.1f")
 current_share_price = float_input("Current Share Price", 12.7, "price", format="%.2f")
 levered_beta = float_input("Levered Beta", 1.24, "beta", format="%.3f")
+
+manual_unlevered_beta = None
+if equity_base_year <= 0:
+    st.sidebar.warning("No es posible calcular la unlevered beta porque el equity es negativo. Por favor ingrese manualmente una beta desapalancada de comparables.")
+    manual_unlevered_beta = float_input("Unlevered Beta (Manual)", 1.0, "man_un_beta", format="%.3f")
+
 ERP = float_input("Equity Risk Premium (ERP)", 0.0429, "erp", format="%.4f")
 
 st.sidebar.subheader("5. R&D Expenses")
@@ -185,6 +191,7 @@ inputs = {
     'shares_outstanding': shares_outstanding,
     'current_share_price': current_share_price,
     'levered_beta': levered_beta,
+    'manual_unlevered_beta': manual_unlevered_beta,
     'ERP': ERP,
     
     'base_r_d_expenses': base_r_d_expenses,

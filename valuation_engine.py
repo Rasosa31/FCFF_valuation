@@ -10,9 +10,15 @@ def calculate_valuation(inputs):
     # 1. WACC & Cost of Capital Calculation
     mc = inputs['current_share_price'] * inputs['shares_outstanding']
     
-    unlevered_beta = inputs['levered_beta'] / (
-        1 + (1 - inputs['marginal_tax_rate']) * (inputs['debt_base_year'] / mc)
-    )
+    if inputs.get('manual_unlevered_beta') is not None:
+        unlevered_beta = inputs['manual_unlevered_beta']
+    else:
+        if mc > 0:
+            unlevered_beta = inputs['levered_beta'] / (
+                1 + (1 - inputs['marginal_tax_rate']) * (inputs['debt_base_year'] / mc)
+            )
+        else:
+            unlevered_beta = inputs['levered_beta']
     
     cost_of_equity = inputs['RFR'] + (unlevered_beta * inputs['ERP'])
     
