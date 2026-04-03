@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import io
 import matplotlib.pyplot as plt
+import json
 from valuation_engine import calculate_valuation, run_montecarlo_sim
 
 def to_excel(df, results, inputs, company_name, valuation_date):
@@ -92,6 +93,19 @@ if st.sidebar.button("Clear Data (Reset to 0)"):
                 continue
             st.session_state[key] = 0.0
     st.rerun()
+
+st.sidebar.subheader("Guardar/Cargar Entradas")
+uploaded_file = st.sidebar.file_uploader("Subir configuración guardada (.json)", type="json")
+if uploaded_file is not None:
+    if st.sidebar.button("Aplicar Configuración"):
+        try:
+            saved_data = json.load(uploaded_file)
+            for k, v in saved_data.items():
+                if k not in ['df', 'results', 'mc_stats']:
+                    st.session_state[k] = v
+            st.rerun()
+        except Exception as e:
+            st.sidebar.error(f"Error al cargar el archivo: {e}")
 
 st.sidebar.subheader("0. General Info")
 company_name = st.sidebar.text_input("Company Name", "My Company")
@@ -217,6 +231,18 @@ if terminal_wacc_input.strip() != "":
         inputs['terminal_wacc'] = float(terminal_wacc_input)
     except ValueError:
         st.sidebar.error("Terminal WACC must be a number.")
+
+export_data = {k: v for k, v in st.session_state.items() if k not in ['df', 'results', 'mc_stats']}
+try:
+    json_string = json.dumps(export_data, indent=4)
+    st.sidebar.download_button(
+        label="Download Inputs (.json)",
+        file_name=f"Inputs_Save.json",
+        mime="application/json",
+        data=json_string
+    )
+except TypeError:
+    pass # In case there's an un-serializable object
 
 # Add a Calculate Button
 if st.sidebar.button("Run Valuation"):
@@ -472,7 +498,15 @@ if 'df' in st.session_state and 'results' in st.session_state:
     with tab9:
         st.header("Anotaciones y Perfil de la Empresa")
         st.markdown("Documenta aquí la descripción de la empresa, tu tesis de inversión y las conclusiones principales. Estas notas se incluirán automáticamente en una pestaña adicional al exportar el archivo de Excel.")
-        st.text_area("Tesis, Riesgos y Conclusiones:", height=400, key="user_notes")
+        notes_text = st.text_area("Tesis, Riesgos y Conclusiones:", height=400, key="user_notes")
+        
+        if notes_text.strip():
+            st.download_button(
+                label="Descargar Notas (.txt)",
+                data=notes_text,
+                file_name=f"Notas_Valoracion.txt",
+                mime="text/plain"
+            )
 
 else:
     st.info("Adjust the values on the sidebar and click 'Run Valuation' to see results.")
