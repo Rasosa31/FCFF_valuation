@@ -290,7 +290,7 @@ def run_montecarlo_sim(inputs, wacc_base, n_simulaciones=5000, margen_ebit_std=0
         w_sim = wacc_sim[i]
         g_sim = crecimiento_perpetuo[i]
         
-        if w_sim <= g_sim or w_sim <= 0:
+        if (w_sim - g_sim) <= 0.005 or w_sim <= 0:
             continue
             
         valor_empresa = 0
