@@ -102,7 +102,11 @@ if uploaded_file is not None:
             saved_data = json.load(uploaded_file)
             for k, v in saved_data.items():
                 if k not in ['df', 'results', 'mc_stats']:
-                    st.session_state[k] = v
+                    # Ensure stcr fields are loaded as string for the text_inputs
+                    if "stcr_" in k:
+                        st.session_state[k] = str(v)
+                    else:
+                        st.session_state[k] = v
             st.rerun()
         except Exception as e:
             st.sidebar.error(f"Error al cargar el archivo: {e}")
@@ -154,7 +158,7 @@ else:
         et_rate.append(st.sidebar.number_input(f"Tax Rate Year {i}", format="%.4f", key=f"etr_list_{i}"))
     st.sidebar.markdown("**Sales to Capital Ratio (StCR)**")
     for i in range(1, 11): 
-        val = st.sidebar.text_input(f"StCR Year {i} (leave empty to use current)", key=f"stcr_list_txt_{i}").strip()
+        val = st.sidebar.text_input(f"StCR Year {i} (leave empty to use current)", key=f"stcr_list_{i}").strip()
         stcr_projection.append(val)
 
 marginal_tax_rate = float_input("Marginal Tax Rate", 0.25, "mar_tax", format="%.4f")
