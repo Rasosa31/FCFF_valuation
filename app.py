@@ -133,7 +133,8 @@ if proj_type == "Single Value":
     agr_rate = float_input("Annual Revenue Growth Rate", 0.05, "agr_single", format="%.4f")
     op_margin = float_input("Operating Margin", 0.10, "opm_single", format="%.4f")
     et_rate = float_input("Effective Tax Rate", 0.14, "etr_single", format="%.4f")
-    stcr_projection = float_input("Sales to Capital Ratio (StCR) Projection", 0.8, "stcr_single", format="%.2f")
+    val = st.sidebar.text_input("Sales to Capital Ratio (StCR) Projection (leave empty to use current)", key="stcr_single").strip()
+    stcr_projection = val
 else:
     agr_rate = []
     op_margin = []
@@ -153,8 +154,8 @@ else:
         et_rate.append(st.sidebar.number_input(f"Tax Rate Year {i}", format="%.4f", key=f"etr_list_{i}"))
     st.sidebar.markdown("**Sales to Capital Ratio (StCR)**")
     for i in range(1, 11): 
-        if f"stcr_list_{i}" not in st.session_state: st.session_state[f"stcr_list_{i}"] = 0.80
-        stcr_projection.append(st.sidebar.number_input(f"StCR Year {i}", format="%.2f", key=f"stcr_list_{i}"))
+        val = st.sidebar.text_input(f"StCR Year {i} (leave empty to use current)", key=f"stcr_list_txt_{i}").strip()
+        stcr_projection.append(val)
 
 marginal_tax_rate = float_input("Marginal Tax Rate", 0.25, "mar_tax", format="%.4f")
 
@@ -185,10 +186,18 @@ minus_threeyear_r_d_expense = float_input("R&D (T-3)", 4336, "rd_m3")
 
 st.sidebar.subheader("6. Debt & Options")
 av_maturity_of_debt = float_input("Average Maturity of Debt (Years)", 5, "mat_debt", format="%.1f")
-option_shares = float_input("Employee Options (Shares)", 0, "opt_shares")
-strike_price = float_input("Average Strike Price", 0, "strike")
-option_maturity = float_input("Average Option Maturity (Years)", 0, "opt_mat")
-stock_volatility = float_input("Stock Volatility (e.g. 0.3 for 30%)", 0.0, "volatility", format="%.4f")
+
+options_calc_method = st.sidebar.radio("Cálculo del Valor de Opciones:", ["Usar Black-Scholes", "Digitar Valor Estimado"], key="opt_method_rd")
+
+if options_calc_method == "Usar Black-Scholes":
+    option_shares = float_input("Employee Options (Shares)", 0, "opt_shares")
+    strike_price = float_input("Average Strike Price", 0, "strike")
+    option_maturity = float_input("Average Option Maturity (Years)", 0, "opt_mat")
+    stock_volatility = float_input("Stock Volatility (e.g. 0.3 for 30%)", 0.0, "volatility", format="%.4f")
+    manual_options_value = 0.0
+else:
+    manual_options_value = float_input("Valor Estimado de las Opciones ($)", 0, "manual_opt_val")
+    option_shares, strike_price, option_maturity, stock_volatility = 0, 0, 0, 0
 
 # Build Input Dictionary
 inputs = {
@@ -222,10 +231,12 @@ inputs = {
     'minus_threeyear_r_d_expense': minus_threeyear_r_d_expense,
     
     'av_maturity_of_debt': av_maturity_of_debt,
+    'options_calc_method': options_calc_method,
     'option_shares': option_shares,
     'strike_price': strike_price,
     'option_maturity': option_maturity,
-    'stock_volatility': stock_volatility
+    'stock_volatility': stock_volatility,
+    'manual_options_value': manual_options_value
 }
 
 if terminal_wacc_input.strip() != "":

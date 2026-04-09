@@ -66,8 +66,19 @@ def calculate_valuation(inputs):
     agr_rate_list = inputs['agr_rate'] if isinstance(inputs['agr_rate'], list) else [inputs['agr_rate']] * 10
     op_margin_list = inputs['op_margin'] if isinstance(inputs['op_margin'], list) else [inputs['op_margin']] * 10
     et_rate_list = inputs['et_rate'] if isinstance(inputs['et_rate'], list) else [inputs['et_rate']] * 10
-    stcr_list = inputs.get('stcr_projection', [0.8]*10)
-    stcr_list = stcr_list if isinstance(stcr_list, list) else [stcr_list] * 10
+    raw_stcr = inputs.get('stcr_projection', "")
+    stcr_list = []
+    if isinstance(raw_stcr, list):
+        for val in raw_stcr:
+            if str(val).strip() == "":
+                stcr_list.append(sales_to_capital_ratio_adj)
+            else:
+                stcr_list.append(float(val))
+    else:
+        if str(raw_stcr).strip() == "":
+            stcr_list = [sales_to_capital_ratio_adj] * 10
+        else:
+            stcr_list = [float(raw_stcr)] * 10
     
     # Revenue projections
     ingresos_base = inputs['revenue_base_year']
@@ -188,27 +199,31 @@ def calculate_valuation(inputs):
     # Value of equity
     value_of_equity = value_of_operating_assets + inputs['cash_base_year'] - inputs['debt_base_year'] - inputs['minority_interes'] + inputs['non_operating_assets']
     
-    # Value Options (Black-Scholes-Merton)
-    option_shares = inputs.get('option_shares', 0)
+    # Value Options
+    options_calc_method = inputs.get('options_calc_method', 'Usar Black-Scholes')
     d1, d2, call_price = 0, 0, 0
-    if option_shares > 0:
-        S = inputs['current_share_price']
-        K = inputs.get('strike_price', 0)
-        t = inputs.get('option_maturity', 0)
-        r = inputs['RFR']
-        sigma = inputs.get('stock_volatility', 0)
-        
-        if K > 0 and t > 0 and sigma > 0:
-            d1 = (np.log(S / K) + (r + (sigma ** 2) / 2) * t) / (sigma * np.sqrt(t))
-            d2 = d1 - sigma * np.sqrt(t)
-            # Call option price
-            call_price = S * norm.cdf(d1) - K * np.exp(-r * t) * norm.cdf(d2)
-            value_option = call_price * option_shares
-        else:
-            value_option = max(0, (S - K) * option_shares) # Intrinsic fallback
-            call_price = max(0, S - K)
+    
+    if options_calc_method == "Digitar Valor Estimado":
+        value_option = float(inputs.get('manual_options_value', 0))
     else:
-        value_option = 0
+        option_shares = inputs.get('option_shares', 0)
+        if option_shares > 0:
+            S = inputs['current_share_price']
+            K = inputs.get('strike_price', 0)
+            t = inputs.get('option_maturity', 0)
+            r = inputs['RFR']
+            sigma = inputs.get('stock_volatility', 0)
+            
+            if K > 0 and t > 0 and sigma > 0:
+                d1 = (np.log(S / K) + (r + (sigma ** 2) / 2) * t) / (sigma * np.sqrt(t))
+                d2 = d1 - sigma * np.sqrt(t)
+                call_price = S * norm.cdf(d1) - K * np.exp(-r * t) * norm.cdf(d2)
+                value_option = call_price * option_shares
+            else:
+                value_option = max(0, (S - K) * option_shares)
+                call_price = max(0, S - K)
+        else:
+            value_option = 0
             
     # Value of equity in common stock
     value_in_common_stock = value_of_equity - value_option
@@ -266,8 +281,24 @@ def run_montecarlo_sim(inputs, wacc_base, n_simulaciones=5000, margen_ebit_std=0
     agr_rate_list = inputs['agr_rate'] if isinstance(inputs['agr_rate'], list) else [inputs['agr_rate']] * 10
     op_margin_list = inputs['op_margin'] if isinstance(inputs['op_margin'], list) else [inputs['op_margin']] * 10
     et_rate_list = inputs['et_rate'] if isinstance(inputs['et_rate'], list) else [inputs['et_rate']] * 10
-    stcr_list = inputs.get('stcr_projection', [0.8]*10)
-    stcr_list = stcr_list if isinstance(stcr_list, list) else [stcr_list] * 10
+    invested_capital_base = inputs['equity_base_year'] + inputs['debt_base_year'] - inputs['cash_base_year']
+    rd_capital_adjustment = (inputs['base_r_d_expenses']) + (inputs['minus_oneyear_r_d_expense'] * 0.75) + (inputs['minus_twoyear_r_d_expense'] * 0.50)
+    invested_capital_adj = round((invested_capital_base + rd_capital_adjustment), 2)
+    sales_to_capital_ratio_adj = round((inputs['revenue_base_year']) / invested_capital_adj, 2) if invested_capital_adj != 0 else 0
+    
+    raw_stcr = inputs.get('stcr_projection', "")
+    stcr_list = []
+    if isinstance(raw_stcr, list):
+        for val in raw_stcr:
+            if str(val).strip() == "":
+                stcr_list.append(sales_to_capital_ratio_adj)
+            else:
+                stcr_list.append(float(val))
+    else:
+        if str(raw_stcr).strip() == "":
+            stcr_list = [sales_to_capital_ratio_adj] * 10
+        else:
+            stcr_list = [float(raw_stcr)] * 10
 
     # Deterministic Revenues (matches base valuation)
     ingresos = [ingresos_iniciales] # Year 0
