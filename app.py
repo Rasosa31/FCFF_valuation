@@ -166,12 +166,14 @@ terminal_wacc_input = st.sidebar.text_input("Terminal WACC (leave empty to use c
 st.sidebar.subheader("4. Market & Equity")
 shares_outstanding = float_input("Shares Outstanding", 2941.6, "shares", format="%.1f")
 current_share_price = float_input("Current Share Price", 12.7, "price", format="%.2f")
-levered_beta = float_input("Levered Beta", 1.24, "beta", format="%.3f")
 
-manual_unlevered_beta = None
-if equity_base_year <= 0:
-    st.sidebar.warning("No es posible calcular la unlevered beta porque el equity es negativo. Por favor ingrese manualmente una beta desapalancada de comparables.")
-    manual_unlevered_beta = float_input("Unlevered Beta (Manual)", 1.0, "man_un_beta", format="%.3f")
+st.sidebar.markdown("**Opciones de Beta Desapalancada Sectorial**")
+beta_option = st.sidebar.radio("Tipo de Beta Desapalancada (Unlevered Beta):", ["Sectorial Normal", "Sectorial Corregida por Cash"], key="beta_opt")
+
+if beta_option == "Sectorial Normal":
+    unlevered_beta = float_input("Beta Desapalancada Sectorial", 0.90, "unlev_beta_sect", format="%.3f")
+else:
+    unlevered_beta = float_input("Beta Desapalancada Sector. Corregida por Cash", 0.90, "unlev_beta_cash", format="%.3f")
 
 ERP = float_input("Equity Risk Premium (ERP)", 0.0429, "erp", format="%.4f")
 
@@ -210,8 +212,8 @@ inputs = {
     
     'shares_outstanding': shares_outstanding,
     'current_share_price': current_share_price,
-    'levered_beta': levered_beta,
-    'manual_unlevered_beta': manual_unlevered_beta,
+    'beta_option': beta_option,
+    'unlevered_beta': unlevered_beta,
     'ERP': ERP,
     
     'base_r_d_expenses': base_r_d_expenses,
@@ -438,8 +440,8 @@ if 'df' in st.session_state and 'results' in st.session_state:
         st.header("WACC Calculation Details")
         st.markdown("Basado en el módulo `wacc.py`.")
         wacc_df = pd.DataFrame({
-            "Componente": ["Unlevered Beta", "Cost of Equity", "Pre-tax Cost of Debt", "Cost of Debt (After Tax)", "Market Value of Debt", "Weight of Equity", "Weight of Debt", "WACC"],
-            "Valor": [f"{results['unlevered_beta']:.4f}", f"{results['cost_of_equity']:.2%}", f"N/A", f"{results['cost_of_debt']:.2%}", f"${results['market_value_of_debt']:,.0f}", f"{results['weight_equity']:.2%}", f"{results['weight_debt']:.2%}", f"{results['WACC']:.2%}"]
+            "Componente": ["Unlevered Beta", "Levered Beta", "Cost of Equity", "Pre-tax Cost of Debt", "Cost of Debt (After Tax)", "Market Value of Debt", "Weight of Equity", "Weight of Debt", "WACC"],
+            "Valor": [f"{results['unlevered_beta']:.4f}", f"{results['levered_beta']:.4f}", f"{results['cost_of_equity']:.2%}", f"N/A", f"{results['cost_of_debt']:.2%}", f"${results['market_value_of_debt']:,.0f}", f"{results['weight_equity']:.2%}", f"{results['weight_debt']:.2%}", f"{results['WACC']:.2%}"]
         })
         st.table(wacc_df)
 

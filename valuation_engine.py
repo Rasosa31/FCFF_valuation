@@ -10,17 +10,22 @@ def calculate_valuation(inputs):
     # 1. WACC & Cost of Capital Calculation
     mc = inputs['current_share_price'] * inputs['shares_outstanding']
     
-    if inputs.get('manual_unlevered_beta') is not None:
-        unlevered_beta = inputs['manual_unlevered_beta']
-    else:
-        if mc > 0:
-            unlevered_beta = inputs['levered_beta'] / (
-                1 + (1 - inputs['marginal_tax_rate']) * (inputs['debt_base_year'] / mc)
-            )
-        else:
-            unlevered_beta = inputs['levered_beta']
+    unlevered_beta = inputs.get('unlevered_beta', 1.0)
     
-    cost_of_equity = inputs['RFR'] + (unlevered_beta * inputs['ERP'])
+    if inputs.get('beta_option') == "Sectorial Normal":
+        debt_for_beta = inputs['debt_base_year']
+    else:
+        # Sectorial Corregida por Cash -> Utiliza Net Debt para apalancar
+        debt_for_beta = max(0, inputs['debt_base_year'] - inputs['cash_base_year'])
+        
+    if mc > 0:
+        levered_beta = unlevered_beta * (1 + (1 - inputs['marginal_tax_rate']) * (debt_for_beta / mc))
+    elif inputs['equity_base_year'] > 0:
+        levered_beta = unlevered_beta * (1 + (1 - inputs['marginal_tax_rate']) * (debt_for_beta / inputs['equity_base_year']))
+    else:
+        levered_beta = unlevered_beta
+    
+    cost_of_equity = inputs['RFR'] + (levered_beta * inputs['ERP'])
     
     pretax_cost_of_debt = inputs['interes_expenses'] / inputs['debt_base_year'] if inputs['debt_base_year'] > 0 else 0
     cost_of_debt = pretax_cost_of_debt * (1 - inputs['marginal_tax_rate'])
@@ -232,6 +237,7 @@ def calculate_valuation(inputs):
         'sales_to_capital_ratio_base': sales_to_capital_ratio_base,
         'sales_to_capital_ratio_adj': sales_to_capital_ratio_adj,
         'unlevered_beta': unlevered_beta,
+        'levered_beta': levered_beta,
         'cost_of_equity': cost_of_equity,
         'cost_of_debt': cost_of_debt,
         'market_value_of_debt': market_value_of_debt,
