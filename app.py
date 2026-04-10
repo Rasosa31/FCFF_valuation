@@ -101,7 +101,7 @@ if uploaded_file is not None:
         try:
             saved_data = json.load(uploaded_file)
             for k, v in saved_data.items():
-                if k not in ['df', 'results', 'mc_stats']:
+                if k not in ['df', 'results', 'mc_stats', 'beta_editor', 'erp_editor']:
                     # Ensure stcr fields are loaded as string for the text_inputs
                     if "stcr_" in k:
                         st.session_state[k] = str(v)
@@ -199,7 +199,6 @@ else:
         st.session_state["beta_df"] = pd.DataFrame([{"Sector": "", "Ventas": 0.0, "Unlevered Beta": 0.00}] * 5)
     
     edited_beta_df = st.sidebar.data_editor(st.session_state["beta_df"], num_rows="dynamic", key="beta_editor")
-    st.session_state["beta_df"] = edited_beta_df
     
     total_ventas = edited_beta_df["Ventas"].sum()
     weighted_beta = (edited_beta_df["Ventas"] * edited_beta_df["Unlevered Beta"]).sum() / total_ventas if total_ventas > 0 else 0.0
@@ -218,7 +217,6 @@ else:
         st.session_state["erp_df"] = pd.DataFrame([{"Región/País": "", "Ventas": 0.0, "ERP (%)": 0.0429}] * 5)
     
     edited_erp_df = st.sidebar.data_editor(st.session_state["erp_df"], num_rows="dynamic", key="erp_editor")
-    st.session_state["erp_df"] = edited_erp_df
     
     total_ventas_erp = edited_erp_df["Ventas"].sum()
     weighted_erp = (edited_erp_df["Ventas"] * edited_erp_df["ERP (%)"]).sum() / total_ventas_erp if total_ventas_erp > 0 else 0.0
@@ -294,11 +292,16 @@ if terminal_wacc_input.strip() != "":
 
 export_data = {}
 for k, v in st.session_state.items():
-    if k not in ['df', 'results', 'mc_stats']:
+    if k not in ['df', 'results', 'mc_stats', 'beta_editor', 'erp_editor']:
         if isinstance(v, pd.DataFrame):
             export_data[k] = v.to_dict('records')
         else:
             export_data[k] = v
+
+if "Múltiples" in beta_calc_method and 'edited_beta_df' in locals():
+    export_data["beta_df"] = edited_beta_df.to_dict('records')
+if "Múltiples" in erp_calc_method and 'edited_erp_df' in locals():
+    export_data["erp_df"] = edited_erp_df.to_dict('records')
 try:
     json_string = json.dumps(export_data, indent=4)
     st.sidebar.download_button(
