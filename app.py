@@ -175,7 +175,11 @@ shares_outstanding = float_input("Shares Outstanding", 2941.6, "shares", format=
 current_share_price = float_input("Current Share Price", 12.7, "price", format="%.2f")
 
 st.sidebar.markdown("**Opciones de Beta Desapalancada**")
-beta_calc_method = st.sidebar.radio("Método de Ingreso:", ["Beta Única", "Múltiples Sectores (Ponderado)"], key="beta_calc_method")
+beta_calc_method = st.sidebar.radio("Método de Ingreso:", [
+    "Beta Única", 
+    "Múltiples Sectores (Sectorial Normal)", 
+    "Múltiples Sectores (Corregida por Cash)"
+], key="beta_calc_method")
 
 if beta_calc_method == "Beta Única":
     beta_option = st.sidebar.radio("Tipo de Beta Desapalancada:", ["Sectorial Normal", "Sectorial Corregida por Cash"], key="beta_opt_single")
@@ -184,7 +188,13 @@ if beta_calc_method == "Beta Única":
     else:
         unlevered_beta = float_input("Beta Desapalancada Sector. Corregida por Cash", 0.90, "unlev_beta_cash", format="%.3f")
 else:
-    st.sidebar.markdown("Ingrese ventas y Beta de cada sector:")
+    if beta_calc_method == "Múltiples Sectores (Sectorial Normal)":
+        beta_option = "Sectorial Normal"
+        st.sidebar.markdown("Ingrese ventas y Beta Sectorial Normal de cada sector:")
+    else:
+        beta_option = "Sectorial Corregida por Cash"
+        st.sidebar.markdown("Ingrese ventas y Beta Corregida por Cash de cada sector:")
+        
     if "beta_df" not in st.session_state:
         st.session_state["beta_df"] = pd.DataFrame([{"Sector": "", "Ventas": 0.0, "Unlevered Beta": 0.00}] * 5)
     
@@ -194,8 +204,6 @@ else:
     total_ventas = edited_beta_df["Ventas"].sum()
     weighted_beta = (edited_beta_df["Ventas"] * edited_beta_df["Unlevered Beta"]).sum() / total_ventas if total_ventas > 0 else 0.0
     st.sidebar.info(f"Unlevered Beta Ponderada: **{weighted_beta:.4f}**")
-    
-    beta_option = st.sidebar.radio("Tipo de Beta (para apalancamiento):", ["Sectorial Normal", "Sectorial Corregida por Cash"], key="beta_opt_multi")
     unlevered_beta = weighted_beta
 
 st.sidebar.markdown("---")
