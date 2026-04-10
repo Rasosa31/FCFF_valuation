@@ -4,6 +4,7 @@ import numpy as np
 import io
 import matplotlib.pyplot as plt
 import json
+from datetime import datetime
 from valuation_engine import calculate_valuation, run_montecarlo_sim
 
 def to_excel(df, results, inputs, company_name, valuation_date):
@@ -105,6 +106,11 @@ if uploaded_file is not None:
                     # Ensure stcr fields are loaded as string for the text_inputs
                     if "stcr_" in k:
                         st.session_state[k] = str(v)
+                    elif k == "valuation_date" and isinstance(v, str):
+                        try:
+                            st.session_state[k] = datetime.strptime(v, "%Y-%m-%d").date()
+                        except ValueError:
+                            pass
                     elif isinstance(v, list) and k in ["beta_df", "erp_df"]:
                         st.session_state[k] = pd.DataFrame(v)
                     else:
@@ -114,8 +120,8 @@ if uploaded_file is not None:
             st.sidebar.error(f"Error al cargar el archivo: {e}")
 
 st.sidebar.subheader("0. General Info")
-company_name = st.sidebar.text_input("Company Name", "My Company")
-valuation_date = st.sidebar.date_input("Valuation Date")
+company_name = st.sidebar.text_input("Company Name", "My Company", key="company_name")
+valuation_date = st.sidebar.date_input("Valuation Date", key="valuation_date")
 
 def float_input(label, default_val, key, format="%.2f"):
     if key not in st.session_state:
@@ -303,15 +309,15 @@ if "Múltiples" in beta_calc_method and 'edited_beta_df' in locals():
 if "Múltiples" in erp_calc_method and 'edited_erp_df' in locals():
     export_data["erp_df"] = edited_erp_df.to_dict('records')
 try:
-    json_string = json.dumps(export_data, indent=4)
+    json_string = json.dumps(export_data, indent=4, default=str)
     st.sidebar.download_button(
         label="Download Inputs (.json)",
         file_name=f"Inputs_Save.json",
         mime="application/json",
         data=json_string
     )
-except TypeError:
-    pass # In case there's an un-serializable object
+except TypeError as e:
+    st.sidebar.error(f"Save error: {e}")
 
 # Add a Calculate Button
 if st.sidebar.button("Run Valuation"):
