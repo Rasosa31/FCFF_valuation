@@ -105,6 +105,8 @@ if uploaded_file is not None:
                     # Ensure stcr fields are loaded as string for the text_inputs
                     if "stcr_" in k:
                         st.session_state[k] = str(v)
+                    elif isinstance(v, list) and k in ["beta_df", "erp_df"]:
+                        st.session_state[k] = pd.DataFrame(v)
                     else:
                         st.session_state[k] = v
             st.rerun()
@@ -172,15 +174,48 @@ st.sidebar.subheader("4. Market & Equity")
 shares_outstanding = float_input("Shares Outstanding", 2941.6, "shares", format="%.1f")
 current_share_price = float_input("Current Share Price", 12.7, "price", format="%.2f")
 
-st.sidebar.markdown("**Opciones de Beta Desapalancada Sectorial**")
-beta_option = st.sidebar.radio("Tipo de Beta Desapalancada (Unlevered Beta):", ["Sectorial Normal", "Sectorial Corregida por Cash"], key="beta_opt")
+st.sidebar.markdown("**Opciones de Beta Desapalancada**")
+beta_calc_method = st.sidebar.radio("Método de Ingreso:", ["Beta Única", "Múltiples Sectores (Ponderado)"], key="beta_calc_method")
 
-if beta_option == "Sectorial Normal":
-    unlevered_beta = float_input("Beta Desapalancada Sectorial", 0.90, "unlev_beta_sect", format="%.3f")
+if beta_calc_method == "Beta Única":
+    beta_option = st.sidebar.radio("Tipo de Beta Desapalancada:", ["Sectorial Normal", "Sectorial Corregida por Cash"], key="beta_opt_single")
+    if beta_option == "Sectorial Normal":
+        unlevered_beta = float_input("Beta Desapalancada Sectorial", 0.90, "unlev_beta_sect", format="%.3f")
+    else:
+        unlevered_beta = float_input("Beta Desapalancada Sector. Corregida por Cash", 0.90, "unlev_beta_cash", format="%.3f")
 else:
-    unlevered_beta = float_input("Beta Desapalancada Sector. Corregida por Cash", 0.90, "unlev_beta_cash", format="%.3f")
+    st.sidebar.markdown("Ingrese ventas y Beta de cada sector:")
+    if "beta_df" not in st.session_state:
+        st.session_state["beta_df"] = pd.DataFrame([{"Sector": "", "Ventas": 0.0, "Unlevered Beta": 0.00}] * 5)
+    
+    edited_beta_df = st.sidebar.data_editor(st.session_state["beta_df"], num_rows="dynamic", key="beta_editor")
+    st.session_state["beta_df"] = edited_beta_df
+    
+    total_ventas = edited_beta_df["Ventas"].sum()
+    weighted_beta = (edited_beta_df["Ventas"] * edited_beta_df["Unlevered Beta"]).sum() / total_ventas if total_ventas > 0 else 0.0
+    st.sidebar.info(f"Unlevered Beta Ponderada: **{weighted_beta:.4f}**")
+    
+    beta_option = st.sidebar.radio("Tipo de Beta (para apalancamiento):", ["Sectorial Normal", "Sectorial Corregida por Cash"], key="beta_opt_multi")
+    unlevered_beta = weighted_beta
 
-ERP = float_input("Equity Risk Premium (ERP)", 0.0429, "erp", format="%.4f")
+st.sidebar.markdown("---")
+st.sidebar.markdown("**Equity Risk Premium (ERP)**")
+erp_calc_method = st.sidebar.radio("Método de Ingreso:", ["ERP Único", "Múltiples Países/Regiones (Ponderado)"], key="erp_calc_method")
+
+if erp_calc_method == "ERP Único":
+    ERP = float_input("Equity Risk Premium (ERP)", 0.0429, "erp", format="%.4f")
+else:
+    st.sidebar.markdown("Ingrese ventas y ERP de cada región:")
+    if "erp_df" not in st.session_state:
+        st.session_state["erp_df"] = pd.DataFrame([{"Región/País": "", "Ventas": 0.0, "ERP (%)": 0.0429}] * 5)
+    
+    edited_erp_df = st.sidebar.data_editor(st.session_state["erp_df"], num_rows="dynamic", key="erp_editor")
+    st.session_state["erp_df"] = edited_erp_df
+    
+    total_ventas_erp = edited_erp_df["Ventas"].sum()
+    weighted_erp = (edited_erp_df["Ventas"] * edited_erp_df["ERP (%)"]).sum() / total_ventas_erp if total_ventas_erp > 0 else 0.0
+    st.sidebar.info(f"ERP Ponderado: **{weighted_erp:.4f}**")
+    ERP = weighted_erp
 
 st.sidebar.subheader("5. R&D Expenses")
 base_r_d_expenses = float_input("Current Year R&D", 5392, "rd_curr")
@@ -249,7 +284,13 @@ if terminal_wacc_input.strip() != "":
     except ValueError:
         st.sidebar.error("Terminal WACC must be a number.")
 
-export_data = {k: v for k, v in st.session_state.items() if k not in ['df', 'results', 'mc_stats']}
+export_data = {}
+for k, v in st.session_state.items():
+    if k not in ['df', 'results', 'mc_stats']:
+        if isinstance(v, pd.DataFrame):
+            export_data[k] = v.to_dict('records')
+        else:
+            export_data[k] = v
 try:
     json_string = json.dumps(export_data, indent=4)
     st.sidebar.download_button(
