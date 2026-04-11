@@ -88,10 +88,17 @@ st.markdown("Basado en metodologías de valoración de Aswath Damodaran")
 st.sidebar.header("Input Variables")
 
 if st.sidebar.button("Clear Data (Reset to 0)"):
-    for key in st.session_state.keys():
-        if key not in ['df', 'results', 'mc_stats']:
-            if "date" in key or "Company" in key or "Input Method" in key:
-                continue
+    for key in list(st.session_state.keys()):
+        if key in ['df', 'results', 'mc_stats', 'beta_editor', 'erp_editor', 'beta_df', 'erp_df']:
+            continue
+            
+        lower_key = str(key).lower()
+        if any(skip in lower_key for skip in ["date", "company", "method", "opt_", "proj_type"]):
+            continue
+            
+        if isinstance(st.session_state[key], str):
+            st.session_state[key] = ""
+        elif isinstance(st.session_state[key], (int, float)):
             st.session_state[key] = 0.0
     st.rerun()
 
@@ -139,7 +146,7 @@ minority_interes = float_input("Minority Interest", 599, "min_int")
 non_operating_assets = float_input("Non Operating Assets", 0, "non_op")
 
 st.sidebar.subheader("2. Projections & Rates (1-10 Years)")
-proj_type = st.sidebar.radio("Input Method for Rates", ["Single Value", "Year-by-Year"])
+proj_type = st.sidebar.radio("Input Method for Rates", ["Single Value", "Year-by-Year"], key="proj_type")
 
 if proj_type == "Single Value":
     agr_rate = float_input("Annual Revenue Growth Rate", 0.05, "agr_single", format="%.4f")
