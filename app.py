@@ -100,7 +100,7 @@ if st.sidebar.button("Clear Data (Reset to 0)"):
             st.session_state[key] = ""
         elif isinstance(st.session_state[key], (int, float)):
             st.session_state[key] = 0.0
-    st.rerun()
+    # execution flows naturally, avoiding st.rerun() to prevent Streamlit GC of dynamic keys
 
 st.sidebar.subheader("Guardar/Cargar Entradas")
 uploaded_file = st.sidebar.file_uploader("Subir configuración guardada (.json)", type="json")
@@ -122,7 +122,7 @@ if uploaded_file is not None:
                         st.session_state[k] = pd.DataFrame(v)
                     else:
                         st.session_state[k] = v
-            st.rerun()
+            # Seamless execution avoids st.rerun(), preserving unrendered array inputs from GC
         except Exception as e:
             st.sidebar.error(f"Error al cargar el archivo: {e}")
 
