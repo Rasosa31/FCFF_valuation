@@ -254,6 +254,7 @@ def calculate_valuation(inputs):
         'unlevered_beta': unlevered_beta,
         'levered_beta': levered_beta,
         'cost_of_equity': cost_of_equity,
+        'pretax_cost_of_debt': pretax_cost_of_debt,
         'cost_of_debt': cost_of_debt,
         'market_value_of_debt': market_value_of_debt,
         'weight_equity': weight_equity,

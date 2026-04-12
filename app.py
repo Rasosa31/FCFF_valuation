@@ -517,13 +517,55 @@ if 'df' in st.session_state and 'results' in st.session_state:
         st.table(bridge_df.style.set_properties(**{'text-align': 'left'}))
 
     with tab4:
-        st.header("WACC Calculation Details")
-        st.markdown("Basado en el módulo `wacc.py`.")
-        wacc_df = pd.DataFrame({
-            "Componente": ["Unlevered Beta", "Levered Beta", "Cost of Equity", "Pre-tax Cost of Debt", "Cost of Debt (After Tax)", "Market Value of Debt", "Weight of Equity", "Weight of Debt", "WACC"],
-            "Valor": [f"{results['unlevered_beta']:.4f}", f"{results['levered_beta']:.4f}", f"{results['cost_of_equity']:.2%}", f"N/A", f"{results['cost_of_debt']:.2%}", f"${results['market_value_of_debt']:,.0f}", f"{results['weight_equity']:.2%}", f"{results['weight_debt']:.2%}", f"{results['WACC']:.2%}"]
-        })
-        st.table(wacc_df)
+        st.header("🔍 Detalle del Cálculo del WACC")
+        st.markdown("Construcción paso a paso del WACC (Weighted Average Cost of Capital), separando la estructura del Costo del Capital (Equity) y el Costo de la Deuda.")
+        
+        st.latex(r"WACC = \left( W_e \times K_e \right) + \left( W_d \times K_d \right)")
+        st.markdown("---")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("📈 Cost of Equity ($K_e$)")
+            st.markdown(f"**1. Tasa Libre de Riesgo (RFR):** `{inputs['RFR']:.2%}`")
+            st.markdown(f"**2. Prima de Riesgo (ERP):** `{inputs['ERP']:.2%}`")
+            st.markdown(f"**3. Unlevered Beta (Sectorial):** `{results['unlevered_beta']:.4f}`")
+            st.markdown(f"**4. Levered Beta (Aplicada):** `{results['levered_beta']:.4f}`")
+            st.info(f"**Cost of Equity ($K_e$):** `{results['cost_of_equity']:.2%}`")
+            st.latex(r"K_e = RFR + (\beta_{lev} \times ERP)")
+            st.latex(fr"K_e = {inputs['RFR']:.4f} + ({results['levered_beta']:.4f} \times {inputs['ERP']:.4f}) = {results['cost_of_equity']:.4f}")
+            
+            st.markdown("---")
+            st.subheader("⚖️ Peso del Equity ($W_e$)")
+            st.metric("Weight of Equity", f"{results['weight_equity']:.2%}")
+            
+        with col2:
+            st.subheader("🏦 Cost of Debt ($K_d$)")
+            st.markdown(f"**1. Gastos por Intereses:** `${inputs['interes_expenses']:,.0f}`")
+            st.markdown(f"**2. Deuda Base:** `${inputs['debt_base_year']:,.0f}`")
+            st.markdown(f"**3. Tasa Impositiva Marginal ($t$):** `{inputs['marginal_tax_rate']:.2%}`")
+            pretax = results.get('pretax_cost_of_debt', 0.0)
+            st.markdown(f"**4. Costo Pre-Impuestos:** `{pretax:.2%}`")
+            st.info(f"**Cost of Debt After-Tax ($K_d$):** `{results['cost_of_debt']:.2%}`")
+            st.latex(r"K_d = \text{Pre-Tax} \times (1 - t)")
+            st.latex(fr"K_d = {pretax:.4f} \times (1 - {inputs['marginal_tax_rate']:.4f}) = {results['cost_of_debt']:.4f}")
+            
+            st.markdown("---")
+            st.subheader("⚖️ Peso de la Deuda ($W_d$)")
+            st.metric("Weight of Debt", f"{results['weight_debt']:.2%}")
+            
+        st.markdown("---")
+        st.subheader("🏆 WACC Final Aplicado")
+        
+        we = results['weight_equity']
+        ke = results['cost_of_equity']
+        wd = results['weight_debt']
+        kd = results['cost_of_debt']
+        wacc_val = results['WACC']
+        
+        st.latex(fr"WACC = ({we:.4f} \times {ke:.4f}) + ({wd:.4f} \times {kd:.4f})")
+        st.success(f"### WACC Calculado: {wacc_val:.2%}")
+        st.caption("Este es el Costo de Capital utilizado para descontar los flujos de caja libre (FCFF) de la compañía.")
 
     with tab5:
         st.header("Sales to Capital Details")
