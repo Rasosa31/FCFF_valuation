@@ -181,7 +181,7 @@ marginal_tax_rate = float_input("Marginal Tax Rate", 0.25, "mar_tax", format="%.
 st.sidebar.subheader("3. Terminal Year")
 RFR = float_input("Risk Free Rate (RFR) / Terminal Growth", 0.0445, "rfr", format="%.4f")
 terminal_operating_margin = float_input("Terminal Operating Margin", 0.10, "term_opm", format="%.4f")
-terminal_wacc_input = st.sidebar.text_input("Terminal WACC (leave empty to use current)", "")
+terminal_wacc_input = st.sidebar.text_input("Terminal WACC (leave empty to use current)", "", key="terminal_wacc_input")
 
 st.sidebar.subheader("4. Market & Equity")
 shares_outstanding = float_input("Shares Outstanding", 2941.6, "shares", format="%.1f")
@@ -527,10 +527,18 @@ if 'df' in st.session_state and 'results' in st.session_state:
         
         with col1:
             st.subheader("📈 Cost of Equity ($K_e$)")
+            d_beta = inputs['debt_base_year'] if inputs['beta_option'] == "Sectorial Normal" else max(0, inputs['debt_base_year'] - inputs['cash_base_year'])
+            mc = inputs['current_share_price'] * inputs['shares_outstanding']
+            e_beta = mc if mc > 0 else inputs['equity_base_year']
+            
             st.markdown(f"**1. Tasa Libre de Riesgo (RFR):** `{inputs['RFR']:.2%}`")
             st.markdown(f"**2. Prima de Riesgo (ERP):** `{inputs['ERP']:.2%}`")
-            st.markdown(f"**3. Unlevered Beta (Sectorial):** `{results['unlevered_beta']:.4f}`")
-            st.markdown(f"**4. Levered Beta (Aplicada):** `{results['levered_beta']:.4f}`")
+            st.markdown(f"**3. Unlevered Beta ($\\beta_{{unlev}}$):** `{results['unlevered_beta']:.4f}`")
+            st.markdown("*(Fórmula de Re-Apalancamiento de Beta)*")
+            st.latex(r"\beta_{lev} = \beta_{unlev} \times \left( 1 + (1 - t) \times \frac{D}{E} \right)")
+            st.latex(fr"\beta_{{lev}} = {results['unlevered_beta']:.4f} \times \left( 1 + (1 - {inputs['marginal_tax_rate']:.4f}) \times \frac{{{d_beta:,.0f}}}{{{e_beta:,.0f}}} \right) = {results['levered_beta']:.4f}")
+            st.markdown(f"**4. Levered Beta Aplicada ($\\beta_{{lev}}$):** `{results['levered_beta']:.4f}`")
+            
             st.info(f"**Cost of Equity ($K_e$):** `{results['cost_of_equity']:.2%}`")
             st.latex(r"K_e = RFR + (\beta_{lev} \times ERP)")
             st.latex(fr"K_e = {inputs['RFR']:.4f} + ({results['levered_beta']:.4f} \times {inputs['ERP']:.4f}) = {results['cost_of_equity']:.4f}")
@@ -577,13 +585,39 @@ if 'df' in st.session_state and 'results' in st.session_state:
         st.table(stcr_df)
 
     with tab6:
-        st.header("R&D Adjustment Details")
-        st.markdown("Basado en el módulo `rd_adjustment.py`. Muestra cómo se capitalizan los gastos en I+D (Research & Development).")
-        rd_df = pd.DataFrame({
-            "Ajuste": ["Capital Adjustment (Suma al Capital Invertido)", "R&D Current Amortization", "Income Adjustment (Suma al Operating Income)", "Tax Adjustment"],
-            "Valor": [f"${results['rd_capital_adjustment']:,.0f}", f"${results['rd_amortization']:,.0f}", f"${results['rd_income_adjust']:,.0f}", f"${results['rd_tax_adjust']:,.0f}"]
-        })
-        st.table(rd_df)
+        st.header("🔬 Detalle de Ajuste por I+D (R&D)")
+        st.markdown("Cálculo paso a paso de la capitalización de los gastos de Investigación y Desarrollo de los últimos 3 años en lugar de tratarlos como gasto operativo puro (Aswath Damodaran).")
+        
+        st.markdown("---")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("📚 Capitalización del I+D")
+            st.markdown(f"**Gasto Año Base ($0$):** `${inputs['base_r_d_expenses']:,.0f}`")
+            st.markdown(f"**Gasto Año -1 ($T_{{-1}}$):** `${inputs['minus_oneyear_r_d_expense']:,.0f}`")
+            st.markdown(f"**Gasto Año -2 ($T_{{-2}}$):** `${inputs['minus_twoyear_r_d_expense']:,.0f}`")
+            st.markdown(f"**Gasto Año -3 ($T_{{-3}}$):** `${inputs['minus_threeyear_r_d_expense']:,.0f}`")
+            
+            st.latex(r"\text{Cap Adj} = \text{I\&D}_{0} + (\text{I\&D}_{-1} \times 0.75) + (\text{I\&D}_{-2} \times 0.50)")
+            st.latex(fr"\text{{Cap Adj}} = {inputs['base_r_d_expenses']:,.0f} + ({inputs['minus_oneyear_r_d_expense']:,.0f} \times 0.75) + ({inputs['minus_twoyear_r_d_expense']:,.0f} \times 0.50) = {results['rd_capital_adjustment']:,.0f}")
+            st.info(f"**Capital Adjustment (Suma al Capital Invertido):** `${results['rd_capital_adjustment']:,.0f}`")
+            
+        with col2:
+            st.subheader("🔄 Impacto en Operating Income")
+            st.markdown("**Gastos No Amortizados (Amortización Actual):**")
+            st.latex(r"\text{Amort} = \left( \text{I\&D}_{-1} + \text{I\&D}_{-2} + \text{I\&D}_{-3} \right) \times 0.333")
+            st.latex(fr"\text{{Amort}} = \left( {inputs['minus_oneyear_r_d_expense']:,.0f} + {inputs['minus_twoyear_r_d_expense']:,.0f} + {inputs['minus_threeyear_r_d_expense']:,.0f} \right) \times 0.333 = {results['rd_amortization']:,.0f}")
+            
+            st.markdown("**Ajuste en Income (Suma al Margen Operativo):**")
+            st.latex(r"\text{Income Adj} = \text{I\&D}_{0} - \text{Amort}")
+            st.latex(fr"\text{{Income Adj}} = {inputs['base_r_d_expenses']:,.0f} - {results['rd_amortization']:,.0f} = {results['rd_income_adjust']:,.0f}")
+            st.info(f"**Income Adjustment:** `${results['rd_income_adjust']:,.0f}`")
+            
+        st.markdown("---")
+        st.subheader("🏦 Impacto Fiscal")
+        st.latex(r"\text{Tax Adj} = \text{Income Adj} \times \text{Marginal Tax Rate}")
+        st.latex(fr"\text{{Tax Adj}} = {results['rd_income_adjust']:,.0f} \times {inputs['marginal_tax_rate']:.4f} = {results['rd_tax_adjust']:,.0f}")
 
     with tab7:
         st.header("Value Options Details (Black-Scholes-Merton)")
