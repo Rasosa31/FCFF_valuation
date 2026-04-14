@@ -139,8 +139,20 @@ def calculate_valuation(inputs):
         reinvestment.append((ingresos[i] - ingresos[i-1]) / sales_to_capital[i])
     
     roic_10 = ebit_less_taxes[11] / (invested_capital_adj + sum(reinvestment[2:12])) if (invested_capital_adj + sum(reinvestment[2:12])) != 0 else 0
-    frat = inputs['RFR'] / roic_10 if roic_10 != 0 else 0
-    terminal_reinvestment = frat * ebit_less_taxes[12]
+    
+    if inputs.get('terminal_reinvestment_method') == "Terminal StCR":
+        term_stcr_str = inputs.get('terminal_stcr_input', "").strip()
+        if term_stcr_str != "":
+            term_stcr_val = float(term_stcr_str)
+        else:
+            term_stcr_val = sales_to_capital[11] # Fallback to Year 10 StCR
+            
+        terminal_reinvestment = (ingresos[12] - ingresos[11]) / term_stcr_val if term_stcr_val != 0 else 0
+        sales_to_capital[12] = term_stcr_val
+    else:
+        frat = inputs['RFR'] / roic_10 if roic_10 != 0 else 0
+        terminal_reinvestment = frat * ebit_less_taxes[12]
+        
     reinvestment.append(terminal_reinvestment)
     
     df["StCR"] = sales_to_capital

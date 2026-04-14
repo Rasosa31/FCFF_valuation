@@ -176,9 +176,17 @@ else:
         val = st.sidebar.text_input(f"StCR Year {i} (leave empty to use current)", key=f"stcr_list_{i}").strip()
         stcr_projection.append(val)
 
+st.sidebar.markdown("**Terminal Sales to Capital Ratio**")
+terminal_stcr_input = st.sidebar.text_input("Terminal StCR (leave empty to use current)", key="terminal_stcr_input").strip()
+
 marginal_tax_rate = float_input("Marginal Tax Rate", 0.25, "mar_tax", format="%.4f")
 
 st.sidebar.subheader("3. Terminal Year")
+terminal_reinvestment_method = st.sidebar.radio(
+    "Terminal Reinvestment Method", 
+    ["Terminal ROIC (Damodaran Base)", "Terminal StCR"], 
+    key="terminal_reinv_method"
+)
 RFR = float_input("Risk Free Rate (RFR) / Terminal Growth", 0.0445, "rfr", format="%.4f")
 terminal_operating_margin = float_input("Terminal Operating Margin", 0.10, "term_opm", format="%.4f")
 terminal_wacc_input = st.sidebar.text_input("Terminal WACC (leave empty to use current)", "", key="terminal_wacc_input")
@@ -276,6 +284,8 @@ inputs = {
     
     'RFR': RFR,
     'terminal_operating_margin': terminal_operating_margin,
+    'terminal_reinvestment_method': terminal_reinvestment_method,
+    'terminal_stcr_input': terminal_stcr_input,
     
     'shares_outstanding': shares_outstanding,
     'current_share_price': current_share_price,
