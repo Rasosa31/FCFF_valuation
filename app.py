@@ -544,8 +544,15 @@ if 'df' in st.session_state and 'results' in st.session_state:
             st.markdown(f"**1. Tasa Libre de Riesgo (RFR):** `{inputs['RFR']:.2%}`")
             st.markdown(f"**2. Prima de Riesgo (ERP):** `{inputs['ERP']:.2%}`")
             st.markdown(f"**3. Unlevered Beta ($\\beta_{{unlev}}$):** `{results['unlevered_beta']:.4f}`")
-            st.markdown("*(Fórmula de Re-Apalancamiento de Beta)*")
-            st.latex(r"\beta_{lev} = \beta_{unlev} \times \left( 1 + (1 - t) \times \frac{D}{E} \right)")
+            
+            if inputs['beta_option'] == "Sectorial Corregida por Cash":
+                st.markdown(f"*(Fórmula de Re-Apalancamiento corrigiendo por cash)*")
+                st.markdown(f"**Deuda Neta Aplicada ($D$):** `${d_beta:,.0f}`")
+                st.latex(r"\beta_{lev} = \beta_{unlev} \times \left( 1 + (1 - t) \times \frac{\text{Net Debt}}{E} \right)")
+            else:
+                st.markdown(f"*(Fórmula de Re-Apalancamiento de Beta)*")
+                st.latex(r"\beta_{lev} = \beta_{unlev} \times \left( 1 + (1 - t) \times \frac{D}{E} \right)")
+                
             st.latex(fr"\beta_{{lev}} = {results['unlevered_beta']:.4f} \times \left( 1 + (1 - {inputs['marginal_tax_rate']:.4f}) \times \frac{{{d_beta:,.0f}}}{{{e_beta:,.0f}}} \right) = {results['levered_beta']:.4f}")
             st.markdown(f"**4. Levered Beta Aplicada ($\\beta_{{lev}}$):** `{results['levered_beta']:.4f}`")
             
