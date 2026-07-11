@@ -1,0 +1,3 @@
+Valor a ajustar en el Capital Invertido:  12072.75
+Ingreso a ajustar (sumar) al income:  413.32
+Valor en impuestos a ajustar:  103.33

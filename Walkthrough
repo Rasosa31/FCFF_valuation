@@ -1,0 +1,35 @@
+# Walkthrough: Aplicación Streamlit de Valoración FCFF
+
+La aplicación interactiva de valoración por Flujo de Caja Libre a la Firma (FCFF) ha sido construida combinando tu lógica original (basada en el Prof. Aswath Damodaran) y desplegada en una arquitectura nativa de Streamlit para la web. 
+
+## Cambios Realizados y Arquitectura
+
+Se ha refactorizado la lógica matemática del proyecto original para que sea estructurada, reutilizable y sin efectos secundarios (como prints locales y guardado forzado de archivos txt), consolidándola en un motor de valoración:
+
+- **`valuation_engine.py`**: Este nuevo módulo contiene las funciones `calculate_valuation(inputs)` y `run_montecarlo_sim(inputs)`. Se encarga de procesar todos los diccionarios de inputs provenientes del panel de control de Streamlit y de retornar métricas, valores WACC, ajustes I+D (R&D) y el Dataframe completo con proyecciones a 10 años.
+- **`app.py`**: La interfaz visual principal. Contiene el panel izquierdo (`st.sidebar`) donde se exponen **24 variables ajustables** en tiempo real. Organiza los resultados en tres pestañas (tabs) principales:
+  1. **Dashboard**: Métricas clave como el WACC consolidado, *Value per Share*, Evolución de Ingresos vs. FCFF y retornos sobre el capital.
+  2. **Cashflow Projections**: Visualización de toda la sábana de proyecciones anuales.
+  3. **Montecarlo Simulation**: Permite estimar estadísticamente (con hasta 20.000 iteraciones) el valor de la acción usando tus distribuciones normales de simulación de `simul_montecarlo.py`.
+
+## Actualización - Fase 3 (Opciones y Bridge)
+
+En esta iteración se ha perfeccionado la precisión financiera de la app:
+- **Formato Limpio 2 Decimales**: Todos los inputs de la barra lateral ahora truncan el exceso de decimales flotantes y resultan más limpios para visualización.
+- **Terminal WACC Autonómo**: Se añadió un input para que puedas sobrescribir el Costo de Capital a perpetuidad (si lo dejas vacío, usa el WACC estándar proyectado de la empresa).
+- **Black-Scholes-Merton (Opciones)**: En la pestaña *Value Options Detail* y en el resultado del cálculo del precio de la acción, ahora existe un descuento preciso de las opciones entregadas a los empleados. Deberás ingresar la `Stock Volatility` y la `Average Option Maturity` en el panel izquierdo (junto al Strike Price) para que el modelo calcule internamente vía *Scipy* el precio teórico de la Call y reste este valor dilutivo al Equity.
+- **Pestaña "Detalle y Valor" (Bridge)**: Se creó este tab exacto con los 16 pasos matemáticos que solicitaste. Partiendo del Flujo Terminal, pasa por el PV a 10 años, suma activos no operativos, efectivo, y resta la deuda, opciones y minoritarios hasta llegar exactamente al *Estimated value / share*.
+
+> [!TIP]
+> También he facilitado un archivo `requirements.txt` en la raíz del proyecto para que la instalación del entorno sea reproducible vía `pip install -r requirements.txt`. (Incluye la nueva dependencia de `scipy` para estadísticas de opciones).
+
+## Instrucciones para Ejecutar la App
+
+Para iniciar la interfaz interactiva abre tu terminal (en la raíz del proyecto `data_frame_fcff`) y asegúrate de tener el entorno activado, luego ejecuta:
+
+```bash
+source .venv/bin/activate
+streamlit run app.py
+```
+
+Automáticamente se abrirá una ventana en tu navegador (`localhost:8501`) donde podrás ajustar manualmente todas las variables a tu antojo para obtener la panorámica visual esperada del proyecto.

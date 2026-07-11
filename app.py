@@ -391,7 +391,7 @@ if 'df' in st.session_state and 'results' in st.session_state:
             color='Metric:N'
         ).properties(height=400)
         
-        st.altair_chart(base_chart, use_container_width=True)
+        st.altair_chart(base_chart)
         
         try:
             excel_data = to_excel(df, results, inputs, company_name, valuation_date)
