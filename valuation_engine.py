@@ -15,8 +15,8 @@ def calculate_valuation(inputs):
     if inputs.get('beta_option') == "Sectorial Normal":
         debt_for_beta = inputs['debt_base_year']
     else:
-        # Sectorial Corregida por Cash -> Utiliza Net Debt para apalancar
-        debt_for_beta = max(0, inputs['debt_base_year'] - inputs['cash_base_year'])
+        # Sectorial Corregida por Cash -> Utiliza Net Debt (uede ser negativo si Cash > Debt)
+        debt_for_beta = inputs['debt_base_year'] - inputs['cash_base_year']
         
     if mc > 0:
         levered_beta = unlevered_beta * (1 + (1 - inputs['marginal_tax_rate']) * (debt_for_beta / mc))

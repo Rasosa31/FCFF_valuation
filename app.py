@@ -537,7 +537,7 @@ if 'df' in st.session_state and 'results' in st.session_state:
         
         with col1:
             st.subheader("📈 Cost of Equity ($K_e$)")
-            d_beta = inputs['debt_base_year'] if inputs['beta_option'] == "Sectorial Normal" else max(0, inputs['debt_base_year'] - inputs['cash_base_year'])
+            d_beta = inputs['debt_base_year'] if inputs['beta_option'] == "Sectorial Normal" else inputs['debt_base_year'] - inputs['cash_base_year']
             mc = inputs['current_share_price'] * inputs['shares_outstanding']
             e_beta = mc if mc > 0 else inputs['equity_base_year']
             
@@ -548,10 +548,10 @@ if 'df' in st.session_state and 'results' in st.session_state:
             if inputs['beta_option'] == "Sectorial Corregida por Cash":
                 st.markdown(f"*(Fórmula de Re-Apalancamiento corrigiendo por cash)*")
                 st.markdown(f"**Deuda Neta Aplicada ($D$):** `${d_beta:,.0f}`")
-                st.latex(r"\beta_{lev} = \beta_{unlev} \times \left( 1 + (1 - t) \times \frac{\text{Net Debt}}{E} \right)")
+                st.latex(r"\beta_{lev} = \beta_{unlev} \times \left( 1 + (1 - t) \times \frac{\text{Net Debt}}{\text{Market Equity}} \right)")
             else:
                 st.markdown(f"*(Fórmula de Re-Apalancamiento de Beta)*")
-                st.latex(r"\beta_{lev} = \beta_{unlev} \times \left( 1 + (1 - t) \times \frac{D}{E} \right)")
+                st.latex(r"\beta_{lev} = \beta_{unlev} \times \left( 1 + (1 - t) \times \frac{D}{\text{Market Equity}} \right)")
                 
             st.latex(fr"\beta_{{lev}} = {results['unlevered_beta']:.4f} \times \left( 1 + (1 - {inputs['marginal_tax_rate']:.4f}) \times \frac{{{d_beta:,.0f}}}{{{e_beta:,.0f}}} \right) = {results['levered_beta']:.4f}")
             st.markdown(f"**4. Levered Beta Aplicada ($\\beta_{{lev}}$):** `{results['levered_beta']:.4f}`")
