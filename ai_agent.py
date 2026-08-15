@@ -252,7 +252,7 @@ def run_auto_valuation(ticker_symbol, target_currency=None):
     except Exception as e:
         print(f"No se pudo guardar el Análisis MD: {e}")
     
-    return inputs, results, df
+    return export_app_format, analysis_text
 
 if __name__ == "__main__":
     import argparse

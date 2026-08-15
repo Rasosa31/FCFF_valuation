@@ -85,6 +85,10 @@ st.set_page_config(page_title="FCFF Valuation App", layout="wide")
 st.title("Valuation App - Free Cash Flow to Firm (FCFF)")
 st.markdown("Basado en metodologías de valoración de Aswath Damodaran")
 
+if 'ai_analysis_text' in st.session_state and st.session_state['ai_analysis_text']:
+    with st.expander("🤖 Resumen Ejecutivo: Análisis Fundamental de la IA", expanded=True):
+        st.markdown(st.session_state['ai_analysis_text'])
+
 st.sidebar.header("Input Variables")
 
 if st.sidebar.button("Clear Data (Reset to 0)"):
@@ -126,8 +130,36 @@ if uploaded_file is not None:
         except Exception as e:
             st.sidebar.error(f"Error al cargar el archivo: {e}")
 
+st.sidebar.markdown("---")
+st.sidebar.subheader("🧠 Automated AI Agent (BETA)")
+ai_ticker = st.sidebar.text_input("Ticker Symbol (e.g. NVDA)", "", key="ai_ticker_input").strip().upper()
+ai_currency = st.sidebar.selectbox("Currency Override", ["USD", "EUR", "GBP", "COP", "BRL"], index=0, key="ai_currency")
+if st.sidebar.button("Run Autonomous Valuation", type="primary"):
+    if ai_ticker:
+        with st.sidebar.status(f"Evaluating {ai_ticker}...", expanded=True) as status:
+            try:
+                from ai_agent import run_auto_valuation
+                result = run_auto_valuation(ai_ticker, target_currency=ai_currency)
+                if result:
+                    export_app_format, analysis_text = result
+                    for k, v in export_app_format.items():
+                        if "stcr_" in k:
+                            st.session_state[k] = str(v)
+                        else:
+                            st.session_state[k] = v
+                    st.session_state['ai_analysis_text'] = analysis_text
+                    status.update(label="Valuation Injection Complete!", state="complete", expanded=False)
+                    st.rerun()
+                else:
+                    status.update(label="Falló la extracción o cálculo.", state="error")
+            except Exception as e:
+                status.update(label=f"Explosión IA: {e}", state="error")
+    else:
+        st.sidebar.error("Ingrese Ticker válido")
+st.sidebar.markdown("---")
+
 st.sidebar.subheader("0. General Info")
-company_name = st.sidebar.text_input("Company Name", "My Company", key="company_name")
+company_name = st.sidebar.text_input("Company Name", key="company_name")
 valuation_date = st.sidebar.date_input("Valuation Date", key="valuation_date")
 
 def float_input(label, default_val, key, format="%.2f"):
@@ -381,8 +413,8 @@ if 'df' in st.session_state and 'results' in st.session_state:
         chart_data = df.iloc[2:12][['Periodo', 'Ingresos', 'FCFF']].copy()
         chart_data['Year'] = range(1, 11)
         
-        # Melt data for Altair plotting
-        melted_data = chart_data.melt('Year', var_name='Metric', value_name='Value')
+        # Melt data for Altair plotting without mixing string columns
+        melted_data = chart_data.melt(id_vars='Year', value_vars=['Ingresos', 'FCFF'], var_name='Metric', value_name='Value')
         
         # Explicitly configure Altair to render the 1-10 string ticks on the X-axis
         base_chart = alt.Chart(melted_data).mark_line().encode(
