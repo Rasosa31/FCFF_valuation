@@ -3,3 +3,7 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# Agent generated valuation files
+Agent_*_Analysis.md
+Agent_*_Inputs.json
