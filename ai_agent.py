@@ -81,6 +81,27 @@ def run_auto_valuation(ticker_symbol, target_currency=None):
     country = raw_data.get('country', 'Unknown')
     statutory_tax = 0.25 if country == 'United States' else 0.21
     
+    # F. Sales to Capital Ratio (StCR) Convergence
+    stcr_list = [""] * 10
+    if stcr_damo:
+        try:
+            stcr_industry = float(stcr_damo)
+            # Calculate adjusted StCR
+            rd_cap_adj = raw_data['base_r_d_expenses'] + (raw_data['minus_oneyear_r_d_expense'] * 0.75) + (raw_data['minus_twoyear_r_d_expense'] * 0.50)
+            inv_cap_base = raw_data['equity_base_year'] + raw_data['debt_base_year'] - raw_data['cash_base_year']
+            inv_cap_adj = inv_cap_base + rd_cap_adj
+            stcr_adj = raw_data['revenue_base_year'] / inv_cap_adj if inv_cap_adj != 0 else 0
+            
+            # Linear convergence to Industry Average
+            if stcr_adj > 0 and stcr_adj != stcr_industry:
+                step = (stcr_industry - stcr_adj) / 10
+                for i in range(1, 11):
+                    stcr_list[i-1] = round(stcr_adj + (step * i), 4)
+            else:
+                stcr_list = [stcr_industry] * 10
+        except Exception:
+            stcr_list = [stcr_damo] * 10
+    
     inputs = {
         # Fundamentals
         'revenue_base_year': raw_data['revenue_base_year'],
@@ -103,7 +124,7 @@ def run_auto_valuation(ticker_symbol, target_currency=None):
         'op_margin': opm_list,
         'et_rate': [statutory_tax] * 10,
         'marginal_tax_rate': statutory_tax,
-        'stcr_projection': [stcr_damo] * 10 if stcr_damo else "",
+        'stcr_projection': stcr_list,
         
         # Terminal Assumptions
         'RFR': rfr,
@@ -205,7 +226,7 @@ def run_auto_valuation(ticker_symbol, target_currency=None):
         export_app_format[f"agr_list_{i}"] = agr_list[i-1]
         export_app_format[f"opm_list_{i}"] = opm_list[i-1]
         export_app_format[f"etr_list_{i}"] = statutory_tax
-        export_app_format[f"stcr_list_{i}"] = stcr_damo if stcr_damo else ""
+        export_app_format[f"stcr_list_{i}"] = stcr_list[i-1]
         
     # Export JSON
     export_filename = f"Agent_{ticker_symbol}_Inputs.json"
