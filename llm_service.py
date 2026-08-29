@@ -21,9 +21,10 @@ def get_llm_projections(ticker, industry, current_margins, rfr, base_revenue_gro
         
         full_prompt = f"""
 Eres un analista de valoración fundamental de élite especializado en el método FCFF (Free Cash Flow to Firm).
-Tu única misión es producir proyecciones de ingresos (revenues) y Margen Operativo (Operating Margin) realista, 
-coherentes y bien fundamentados para alimentar la app de valoración FCFF del usuario. Nunca inventes números sin 
-justificación explícita.
+Tu única misión es proyectar ingresos (tasa de crecimiento anual) y margen operacional de forma realista y no lineal, 
+basándote exclusivamente en el análisis profundo de toda la información disponible (sector, ciclo económico, reinversión, 
+competencia, tendencias históricas y perspectivas futuras) para alimentar la app de valoración FCFF del usuario. 
+Nunca inventes números sin justificación explícita.
 
 **Compañía a valorar:** {ticker}
 **Industria / Sector:** {industry}
@@ -32,20 +33,22 @@ justificación explícita.
 **Crecimiento Consenso de Analistas (Año 1 prospectivo):** {base_revenue_growth:.2%}
 
 ### Reglas para Crecimiento de Ingresos (AGR):
-1. **Etapa del ciclo de vida:** Clasifica a la empresa según Damodaran (Startup / High Growth / Mature Growth / Mature Stable / Decline) justificando con evidencia.
-2. **Análisis de TAM/SOM:** Estima qué porción del mercado es capturable a 10 años evaluando barreras de entrada.
-3. **Distribución del CAGR:** Construye un arreglo de 10 años. Si es Front-loaded, decrece rápido. El año 10 debe acercarse asintóticamente a la Tasa Libre de Riesgo ({rfr:.2%}).
+1. La curva de crecimiento puede acelerar, desacelerar, estabilizarse o invertirse en cualquier momento del horizonte (ej. alto crecimiento inicial y luego moderación, o lo contrario). 
+2. PROHÍBE cualquier decrecimiento lineal automático. 
+3. El año 10 debe converger racionalmente hacia una tasa estable, típicamente acercándose a la Tasa Libre de Riesgo ({rfr:.2%}).
 
 ### Reglas para Margen Operativo (OPM):
-1. El Agente anterior lo mantenía estático. Ahora debes proyectarlo.
-2. ¿Aumentará por economías de escala / madurez? ¿Descenderá por competencia y caducidad tecnológica?
-3. Evalúa promedios empíricos históricos ({current_margins:.2%}) contra márgenes diana de su sector industrial. Construye un recorrido de 10 años.
+1. Evoluciona dinámicamente según reinversión, eficiencia, pricing power y salud del negocio. 
+2. Puede mejorar, deteriorarse o estabilizarse. 
+3. PROHÍBE el uso de promedio histórico estático de forma plana; debes proyectar su evolución en un horizonte de 10 años.
+
+Las proyecciones deben reflejar las condiciones reales de la empresa y su entorno. Justifica brevemente la forma de cada curva en las narrativas.
 
 Debes devolver OBLIGATORIAMENTE un JSON que sea programacionalmente parseable, con la siguiente estructura exacta:
 {{
-    "revenue_narrative": "Resumen ejecutivo de la narrativa de crecimiento de 2-4 párrafos",
+    "revenue_narrative": "Justificación de 2-4 párrafos explicando por qué la curva de ingresos acelera/desacelera.",
     "agr_list": [0.20, 0.15, 0.10, 0.08, 0.06, 0.05, 0.05, 0.046, 0.046, 0.046],
-    "margin_narrative": "Resumen ejecutivo argumentando la evolución de los márgenes",
+    "margin_narrative": "Justificación de la evolución dinámica del margen operativo (eficiencia, pricing power, etc).",
     "opm_list": [0.45, 0.46, 0.47, 0.48, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49]
 }}
 """
