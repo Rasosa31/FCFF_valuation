@@ -13,7 +13,17 @@ def get_llm_projections(ticker, industry, current_margins, rfr, base_revenue_gro
     load_dotenv()
     
     api_key = os.environ.get("GEMINI_API_KEY")
+    
+    # Intento secundario vía st.secrets (para Streamlit Cloud)
+    if not api_key:
+        try:
+            import streamlit as st
+            api_key = st.secrets.get("GEMINI_API_KEY")
+        except Exception:
+            pass
+            
     if not api_key or api_key == "PEGA_AQUÍ_TU_API_KEY":
+        print("❌ API Key no encontrada. Usando heurística.")
         return None
         
     print("🧠 Invocando al Modelo Gemini Advanced (aistudio.google.com)...")
