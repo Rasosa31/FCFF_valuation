@@ -119,6 +119,18 @@ def get_financial_data(ticker_symbol, target_currency=None):
     # Analyst Growth Estimates (from info)
     analyst_revenue_growth = info.get('revenueGrowth', 0.0)
     
+    # Historical Stock Volatility Calculation (Annualized over 252 days)
+    try:
+        hist = ticker.history(period="1y")
+        if not hist.empty and 'Close' in hist.columns:
+            daily_returns = hist['Close'].pct_change().dropna()
+            implied_volatility = float(daily_returns.std() * np.sqrt(252))
+        else:
+            implied_volatility = 0.0
+    except Exception as e:
+        print(f"Error fetching volatility data: {e}")
+        implied_volatility = 0.0
+    
     # Historical Operating Margins Average (Trailing 4 years if possible)
     op_margins = []
     for dt in financials.columns:
@@ -159,5 +171,6 @@ def get_financial_data(ticker_symbol, target_currency=None):
         'currency': target_currency if target_currency else currency,
         'financialCurrency': target_currency if target_currency else financial_currency,
         'analyst_revenue_growth': analyst_revenue_growth,
-        'historical_avg_op_margin': historical_avg_op_margin
+        'historical_avg_op_margin': historical_avg_op_margin,
+        'implied_volatility': implied_volatility
     }

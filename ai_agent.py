@@ -1,6 +1,7 @@
 import pandas as pd
 from yfinance_service import get_financial_data
 from damodaran_service import get_damodaran_metrics, get_damodaran_erp
+from sec_edgar_service import get_cik_from_ticker, get_options_data
 from llm_service import get_llm_projections
 from valuation_engine import calculate_valuation
 import yfinance as yf
@@ -42,6 +43,26 @@ def run_auto_valuation(ticker_symbol, target_currency=None):
     stcr_damo = damodaran_data.get('sales_to_capital') or ""
     beta_damo = damodaran_data.get('unlevered_beta') or raw_data['beta']
     beta_damo_cash = damodaran_data.get('unlevered_beta_cash') or beta_damo
+    
+    print("   -> Contactando SEC EDGAR (Búsqueda de Stock Options/RSUs)...")
+    cik = get_cik_from_ticker(ticker_symbol)
+    if cik:
+        sec_options = get_options_data(cik)
+        opt_shares = sec_options['option_shares_millions']
+        opt_strike = sec_options['strike_price']
+        opt_maturity = sec_options['option_maturity']
+        if opt_shares > 0 and opt_strike > 0:
+            print(f"   -> Opciones encontradas: {opt_shares}M shares | Strike: ${opt_strike} | Vencimiento: {opt_maturity}y")
+        else:
+            opt_shares = 0.0
+            opt_strike = 0.0
+            opt_maturity = 0.0
+            print(f"   -> Sin Opciones detectadas en XBRL (Probablemente use RSUs puras o datos no reportados).")
+    else:
+        opt_shares = 0.0
+        opt_strike = 0.0
+        opt_maturity = 0.0
+        print("   -> CIK no encontrado, saltando extracción EDGAR.")
     
     # C & D. Projections (LLM Agent vs Heuristics)
     base_growth = float(raw_data['analyst_revenue_growth']) if raw_data.get('analyst_revenue_growth') else 0.50
@@ -143,12 +164,12 @@ def run_auto_valuation(ticker_symbol, target_currency=None):
         
         # Debt & Options
         'av_maturity_of_debt': 5.0,
-        'options_calc_method': "Digitar Valor Estimado",
+        'options_calc_method': "Black Scholes de la App" if opt_shares > 0 and opt_strike > 0 else "Digitar Valor Estimado",
         'manual_options_value': 0.0,
-        'option_shares': 0,
-        'strike_price': 0,
-        'option_maturity': 0,
-        'stock_volatility': 0
+        'option_shares': opt_shares,
+        'strike_price': opt_strike,
+        'option_maturity': opt_maturity,
+        'stock_volatility': raw_data.get('implied_volatility', 0.25)
     }
     
     print("⚙️ Ejecutando Valuation Engine (Modelo Damodaran)...")
@@ -210,7 +231,7 @@ def run_auto_valuation(ticker_symbol, target_currency=None):
         "rd_m3": inputs['minus_threeyear_r_d_expense'],
         
         "mat_debt": inputs['av_maturity_of_debt'],
-        "opt_method_rd": "Digitar Valor Estimado",
+        "opt_method_rd": inputs['options_calc_method'],
         "manual_opt_val": inputs['manual_options_value'],
         "opt_shares": inputs['option_shares'],
         "strike": inputs['strike_price'],
