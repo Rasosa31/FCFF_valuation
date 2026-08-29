@@ -32,8 +32,9 @@ def calculate_valuation(inputs):
     
     market_value_of_debt = inputs['debt_base_year'] / (1 + cost_of_debt) ** inputs['av_maturity_of_debt'] if cost_of_debt > 0 else inputs['debt_base_year']
     
-    weight_equity = mc / (mc + market_value_of_debt)
-    weight_debt = market_value_of_debt / (mc + market_value_of_debt)
+    total_capital = mc + market_value_of_debt
+    weight_equity = mc / total_capital if total_capital > 0 else 1.0
+    weight_debt = market_value_of_debt / total_capital if total_capital > 0 else 0.0
     
     wacc = (cost_of_equity * weight_equity) + (cost_of_debt * weight_debt)
            
@@ -136,7 +137,9 @@ def calculate_valuation(inputs):
     
     reinvestment = [0, 0] # Year 0 and 0A
     for i in range(2, 12):
-        reinvestment.append((ingresos[i] - ingresos[i-1]) / sales_to_capital[i])
+        delta_sales = ingresos[i] - ingresos[i-1]
+        stcr_val = sales_to_capital[i]
+        reinvestment.append(delta_sales / stcr_val if stcr_val != 0 else 0)
     
     roic_10 = ebit_less_taxes[11] / (invested_capital_adj + sum(reinvestment[2:12])) if (invested_capital_adj + sum(reinvestment[2:12])) != 0 else 0
     
@@ -333,7 +336,8 @@ def run_montecarlo_sim(inputs, wacc_base, n_simulaciones=5000, margen_ebit_std=0
             ebit = ingresos[t] * (op_margin_list[t-1] + margin_shock[i])
             ebit_1_t = ebit * (1 - et_rate_list[t-1])
             delta_sales = ingresos[t] - ingresos[t-1]
-            reinvestment = delta_sales / stcr_list[t-1]
+            stcr_val = stcr_list[t-1]
+            reinvestment = delta_sales / stcr_val if stcr_val != 0 else 0
             fcff = ebit_1_t - reinvestment
             fcff_proyectados.append(fcff)
             

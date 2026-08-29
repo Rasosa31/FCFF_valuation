@@ -185,12 +185,15 @@ def run_auto_valuation(ticker_symbol, target_currency=None):
     print(f"Precio Actual Acción : ${raw_data['current_share_price']:,.2f}")
     print(f"Valor Estimado (FCFF): ${results['value_per_share']:,.2f}")
     
-    if results['value_per_share'] > raw_data['current_share_price']:
-        upside = (results['value_per_share'] / raw_data['current_share_price']) - 1
-        print(f"📌 Estado: SUBVALORADA (Upside: {upside:.1%})")
+    if raw_data['current_share_price'] > 0:
+        if results['value_per_share'] > raw_data['current_share_price']:
+            upside = (results['value_per_share'] / raw_data['current_share_price']) - 1
+            print(f"📌 Estado: SUBVALORADA (Upside: {upside:.1%})")
+        else:
+            downside = 1 - (results['value_per_share'] / raw_data['current_share_price'])
+            print(f"📌 Estado: SOBREVALORADA (Downside: {downside:.1%})")
     else:
-        downside = 1 - (results['value_per_share'] / raw_data['current_share_price'])
-        print(f"📌 Estado: SOBREVALORADA (Downside: {downside:.1%})")
+        print(f"📌 Estado: NO EVALUABLE (Precio actual no disponible o es 0)")
     print("="*50)
     
     # Map to Streamlit UI Keys
