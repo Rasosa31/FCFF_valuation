@@ -276,6 +276,34 @@ else:
     st.sidebar.info(f"ERP Ponderado: **{weighted_erp:.4f}**")
     ERP = weighted_erp
 
+# 4. Country Risk (lambda & CRP) – optional
+use_country_risk = st.sidebar.checkbox(
+    "Considerar riesgo país (λ, CRP)", value=False, key="use_country_risk"
+)
+
+if use_country_risk:
+    lambda_val = st.sidebar.number_input(
+        "λ (exposición al riesgo país)",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.0,
+        step=0.01,
+        key="lambda_input",
+        format="%.2f",
+    )
+    crp_val = st.sidebar.number_input(
+        "CRP (Country Risk Premium %)",
+        min_value=0.0,
+        max_value=100.0,
+        value=0.0,
+        step=0.01,
+        key="crp_input",
+        format="%.2f",
+    )
+else:
+    lambda_val = 0.0
+    crp_val = 0.0
+
 st.sidebar.subheader("5. R&D Expenses")
 base_r_d_expenses = float_input("Current Year R&D", 5392, "rd_curr")
 minus_oneyear_r_d_expense = float_input("R&D (T-1)", 5493, "rd_m1")
@@ -336,7 +364,9 @@ inputs = {
     'strike_price': strike_price,
     'option_maturity': option_maturity,
     'stock_volatility': stock_volatility,
-    'manual_options_value': manual_options_value
+    'manual_options_value': manual_options_value,
+    'lambda': lambda_val,
+    'CRP': crp_val / 100.0,
 }
 
 if terminal_wacc_input.strip() != "":

@@ -25,7 +25,9 @@ def calculate_valuation(inputs):
     else:
         levered_beta = unlevered_beta
     
-    cost_of_equity = inputs['RFR'] + (levered_beta * inputs['ERP'])
+    lam = inputs.get('lambda', 0.0)
+    crp = inputs.get('CRP', 0.0)
+    cost_of_equity = inputs['RFR'] + (levered_beta * inputs['ERP']) + (lam * crp)
     
     pretax_cost_of_debt = inputs['interes_expenses'] / inputs['debt_base_year'] if inputs['debt_base_year'] > 0 else 0
     cost_of_debt = pretax_cost_of_debt * (1 - inputs['marginal_tax_rate'])
