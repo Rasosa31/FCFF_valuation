@@ -41,8 +41,8 @@ def run_auto_valuation(ticker_symbol, target_currency=None):
     matched_ind = damodaran_data.get('matched_industry', industry)
     
     stcr_damo = damodaran_data.get('sales_to_capital') or ""
-    beta_damo = damodaran_data.get('unlevered_beta') or raw_data['beta']
-    beta_damo_cash = damodaran_data.get('unlevered_beta_cash') or beta_damo
+    # Yahoo Finance beta is already levered; pass it directly to the valuation engine.
+    levered_beta = float(raw_data.get('beta') or 0.0)
     
     print("   -> Contactando SEC EDGAR (Búsqueda de Stock Options/RSUs)...")
     cik = get_cik_from_ticker(ticker_symbol)
@@ -154,8 +154,8 @@ def run_auto_valuation(ticker_symbol, target_currency=None):
         'terminal_stcr_input': stcr_damo if stcr_damo else "",
         
         # Cost of Capital
-        'beta_option': 'Sectorial Corregida por Cash',
-        'unlevered_beta': beta_damo_cash, 
+        # Levered Beta obtained from Yahoo Finance; no Hamada re-levering.
+        'levered_beta': levered_beta,
         'ERP': damodaran_erp, 
         
         # Market
@@ -220,10 +220,8 @@ def run_auto_valuation(ticker_symbol, target_currency=None):
         "shares": inputs['shares_outstanding'],
         "price": inputs['current_share_price'],
         
-        "beta_calc_method": "Beta Única",
-        "beta_opt_single": "Sectorial Corregida por Cash",
-        "unlev_beta_sect": beta_damo,
-        "unlev_beta_cash": beta_damo_cash,
+        "beta_calc_method": "Beta Levered",
+        "levered_beta": levered_beta,
         
         "erp_calc_method": "ERP Único",
         "erp": damodaran_erp,
@@ -283,7 +281,7 @@ def run_auto_valuation(ticker_symbol, target_currency=None):
 
 ## 4. Métricas Sectoriales de Aswath Damodaran
 - **Industria base:** '{industry}' -> Match más cercano: **'{matched_ind}'**.
-- **Unlevered Beta:** El modelo empleó `{beta_damo}` como normal y eligió re-apalancar usando la **Beta Corregida por Cash de {beta_damo_cash}** reconociendo precisamente tus lineamientos de separar los colchones de liquidez de los activos de operación.
+- **Levered Beta:** El modelo utiliza directamente el beta levered obtenido de Yahoo Finance: **{levered_beta:.4f}**. No se realiza un proceso de unlevering/relevering.
 - **Sales to Capital Ratio (StCR):** {stcr_damo if stcr_damo else 'No encontrados en XLS por fallo estructural, usando proxy ajustado.'}
 
 ## 5. Tasa Marginal Estatuaria de Impuestos
