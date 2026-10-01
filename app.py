@@ -1065,7 +1065,16 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
         st.markdown("Construcción paso a paso del WACC (Weighted Average Cost of Capital), separando la estructura del Costo del Capital (Equity) y el Costo de la Deuda.")
 
-        st.latex(r"WACC = \left( W_e \times K_e \right) + \left( W_d \times K_d \right)")
+        lam_r = results.get('lambda', 0.0)
+        crp_r = results.get('CRP', 0.0)
+        has_country_risk = (lam_r != 0.0 and crp_r != 0.0)
+
+        if has_country_risk:
+            st.latex(r"WACC = \left( W_e \times K_e \right) + \left( W_d \times K_d \right)")
+            st.latex(r"K_e = RFR + (\beta_{lev} \times ERP) + (\lambda \times CRP)")
+        else:
+            st.latex(r"WACC = \left( W_e \times K_e \right) + \left( W_d \times K_d \right)")
+            st.latex(r"K_e = RFR + (\beta_{lev} \times ERP)")
 
         st.markdown("---")
 
@@ -1075,29 +1084,48 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
             st.subheader("📈 Cost of Equity ($K_e$)")
 
-            st.markdown(f"**1. Tasa Libre de Riesgo (RFR):** `{inputs['RFR']:.2%}`")
-            st.markdown(f"**2. Prima de Riesgo (ERP):** `{inputs['ERP']:.2%}`")
+            st.markdown(f"**1. Tasa Libre de Riesgo (RFR):** `{inputs['RFR']:.4f}`")
+            st.markdown(f"**2. Prima de Riesgo (ERP):** `{inputs['ERP']:.4f}`")
             st.markdown(
                 f"**3. Levered Beta ($\\beta_{{lev}}$):** "
                 f"`{results['levered_beta']:.4f}`"
             )
-            st.info(
-                "Se utiliza directamente el Levered Beta de la compañía "
-                "(por ejemplo, Yahoo Finance). No se realiza unlevering, "
-                "relevering ni ajuste mediante Hamada."
-            )
-            st.latex(r"\\beta_{lev} = \\text{Levered Beta de la compañía}")
-            st.info(f"**Cost of Equity ($K_e$):** `{results['cost_of_equity']:.2%}`")
-            st.latex(r"K_e = RFR + (\\beta_{lev} \\times ERP)")
-            st.latex(
-                fr"K_e = {inputs['RFR']:.4f} + "
-                fr"({results['levered_beta']:.4f} \\times {inputs['ERP']:.4f}) "
-                fr"= {results['cost_of_equity']:.4f}"
-            )
+
+            if has_country_risk:
+                st.markdown(f"**4. λ (Exposición al Riesgo País):** `{lam_r:.2f}`")
+                st.markdown(f"**5. CRP (Country Risk Premium):** `{crp_r:.4f}`")
+
+                st.latex(r"K_e = RFR + (\beta_{lev} \times ERP) + (\lambda \times CRP)")
+                st.latex(
+                    fr"K_e = {inputs['RFR']:.4f} + "
+                    fr"({results['levered_beta']:.4f} \times {inputs['ERP']:.4f}) + "
+                    fr"({lam_r:.2f} \times {crp_r:.4f})"
+                )
+                st.latex(fr"K_e = {results['cost_of_equity']:.4f}")
+            else:
+                st.latex(r"K_e = RFR + (\beta_{lev} \times ERP)")
+                st.latex(
+                    fr"K_e = {inputs['RFR']:.4f} + "
+                    fr"({results['levered_beta']:.4f} \times {inputs['ERP']:.4f}) "
+                    fr"= {results['cost_of_equity']:.4f}"
+                )
+
+            st.success(f"**Cost of Equity ($K_e$):** `{results['cost_of_equity']:.2%}`")
 
             st.markdown("---")
 
             st.subheader("⚖️ Peso del Equity ($W_e$)")
+
+            mc_val = results.get('market_cap', 0.0)
+            tc_val = results.get('total_capital', 0.0)
+
+            st.markdown(f"**Market Cap (Precio × Acciones):** `${mc_val:,.2f}`")
+            st.markdown(f"**Total Capital (MC + MV Deuda):** `${tc_val:,.2f}`")
+
+            st.latex(r"W_e = \frac{\text{Market Cap}}{\text{Market Cap} + \text{MV Deuda}}")
+            st.latex(
+                fr"W_e = \frac{{{mc_val:,.2f}}}{{{tc_val:,.2f}}} = {results['weight_equity']:.4f}"
+            )
 
             st.metric("Weight of Equity", f"{results['weight_equity']:.2%}")
 
@@ -1105,47 +1133,57 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
             st.subheader("🏦 Cost of Debt ($K_d$)")
 
-            st.markdown(f"**1. Gastos por Intereses:** `${inputs['interes_expenses']:,.0f}`")
+            st.markdown(f"**1. Gastos por Intereses:** `${inputs['interes_expenses']:,.2f}`")
 
-            st.markdown(f"**2. Deuda Base:** `${inputs['debt_base_year']:,.0f}`")
+            st.markdown(f"**2. Deuda (Book Value):** `${inputs['debt_base_year']:,.2f}`")
 
             st.markdown(f"**3. Tasa Impositiva Marginal ($t$):** `{inputs['marginal_tax_rate']:.2%}`")
 
             pretax = results.get('pretax_cost_of_debt', 0.0)
 
-            st.markdown(f"**4. Costo Pre-Impuestos:** `{pretax:.2%}`")
-
-            st.info(f"**Cost of Debt After-Tax ($K_d$):** `{results['cost_of_debt']:.2%}`")
+            st.latex(r"\text{Pre-Tax Cost of Debt} = \frac{\text{Gastos por Intereses}}{\text{Deuda}}")
+            st.latex(
+                fr"\text{{Pre-Tax}} = \frac{{{inputs['interes_expenses']:,.2f}}}{{{inputs['debt_base_year']:,.2f}}} = {pretax:.4f}"
+            )
 
             st.latex(r"K_d = \text{Pre-Tax} \times (1 - t)")
-
             st.latex(fr"K_d = {pretax:.4f} \times (1 - {inputs['marginal_tax_rate']:.4f}) = {results['cost_of_debt']:.4f}")
+
+            st.success(f"**Cost of Debt After-Tax ($K_d$):** `{results['cost_of_debt']:.2%}`")
 
             st.markdown("---")
 
             st.subheader("⚖️ Peso de la Deuda ($W_d$)")
 
+            mv_debt = results.get('market_value_of_debt', 0.0)
+
+            st.markdown(f"**MV de la Deuda:** `${mv_debt:,.2f}`")
+            st.markdown(f"**Vencimiento Promedio Deuda:** `{inputs['av_maturity_of_debt']:.1f} años`")
+            st.markdown(f"**Total Capital (MC + MV Deuda):** `${tc_val:,.2f}`")
+
+            st.latex(r"MV_{deuda} = \frac{\text{Book Value Deuda}}{(1 + K_d)^{\text{maturity}}}")
+            st.latex(r"W_d = \frac{MV_{deuda}}{\text{Market Cap} + MV_{deuda}}")
+            st.latex(
+                fr"W_d = \frac{{{mv_debt:,.2f}}}{{{tc_val:,.2f}}} = {results['weight_debt']:.4f}"
+            )
+
             st.metric("Weight of Debt", f"{results['weight_debt']:.2%}")
 
-            st.markdown("---")
+        st.markdown("---")
 
-            st.subheader("🏆 WACC Final Aplicado")
+        st.subheader("🏆 WACC Final Aplicado")
 
-            we = results['weight_equity']
+        we = results['weight_equity']
+        ke = results['cost_of_equity']
+        wd = results['weight_debt']
+        kd = results['cost_of_debt']
+        wacc_val = results['WACC']
 
-            ke = results['cost_of_equity']
+        st.latex(fr"WACC = ({we:.4f} \times {ke:.4f}) + ({wd:.4f} \times {kd:.4f})")
 
-            wd = results['weight_debt']
+        st.success(f"### WACC Calculado: {wacc_val:.2%}")
 
-            kd = results['cost_of_debt']
-
-            wacc_val = results['WACC']
-
-            st.latex(fr"WACC = ({we:.4f} \times {ke:.4f}) + ({wd:.4f} \times {kd:.4f})")
-
-            st.success(f"### WACC Calculado: {wacc_val:.2%}")
-
-            st.caption("Este es el Costo de Capital utilizado para descontar los flujos de caja libre (FCFF) de la compañía.")
+        st.caption("Este es el Costo de Capital utilizado para descontar los flujos de caja libre (FCFF) de la compañía.")
 
     with tab5:
 
