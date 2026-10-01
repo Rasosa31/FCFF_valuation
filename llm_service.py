@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -10,7 +11,8 @@ def get_llm_projections(ticker, industry, current_margins, rfr, base_revenue_gro
     Connects to Google's Gemini API to request advanced fundamental analysis 
     for 10-year AGR and OPM projections using the explicit Analyst Prompt.
     
-    Usa la forma recomendada (Chat) para evitar el warning de Automatic Function Calling.
+    Usa la forma recomendada (Chat) para evitar el warning de Automatic Function Calling
+    e incluye lógica de reintentos (Exponential Backoff) para manejar picos de demanda (503 UNAVAILABLE).
     """
     load_dotenv()
     
@@ -30,10 +32,7 @@ def get_llm_projections(ticker, industry, current_margins, rfr, base_revenue_gro
         
     print("🧠 Invocando al Modelo Gemini Advanced (aistudio.google.com)...")
     
-    try:
-        client = genai.Client(api_key=api_key)
-        
-        full_prompt = f"""
+    full_prompt = f"""
 Eres un analista de valoración fundamental de élite especializado en el método FCFF (Free Cash Flow to Firm).
 Tu única misión es proyectar ingresos (tasa de crecimiento anual) y margen operacional de forma realista y no lineal, 
 basándote exclusivamente en el análisis profundo de toda la información disponible (sector, ciclo económico, reinversión, 
@@ -67,59 +66,76 @@ Debes devolver OBLIGATORIAMENTE un JSON que sea programacionalmente parseable, c
 }}
 """
 
-        # Forma recomendada: usar Chat en lugar de Models.generate_content
-        chat = client.chats.create(
-            model='gemini-3.6-flash',
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                safety_settings=[
-                    types.SafetySetting(
-                        category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                    ),
-                    types.SafetySetting(
-                        category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                    ),
-                    types.SafetySetting(
-                        category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                    ),
-                    types.SafetySetting(
-                        category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                    ),
-                ]
-            )
-        )
+    max_retries = 3
+    base_delay = 2  # Segundos de espera inicial
 
-        response = chat.send_message(full_prompt)
-        text = response.text
-        
-        # Clean potential markdown wrapping
-        text = text.strip()
-        if text.startswith('```json'):
-            text = text[7:]
-        elif text.startswith('```'):
-            text = text[3:]
-        if text.endswith('```'):
-            text = text[:-3]
+    for attempt in range(1, max_retries + 1):
+        try:
+            client = genai.Client(api_key=api_key)
             
-        # Buscar bloque JSON de forma segura
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            text = match.group(0)
+            # Forma recomendada: usar Chat en lugar de Models.generate_content
+            chat = client.chats.create(
+                model='gemini-3.6-flash',
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    safety_settings=[
+                        types.SafetySetting(
+                            category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                        ),
+                        types.SafetySetting(
+                            category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                        ),
+                        types.SafetySetting(
+                            category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                        ),
+                        types.SafetySetting(
+                            category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                        ),
+                    ]
+                )
+            )
+
+            response = chat.send_message(full_prompt)
+            text = response.text
             
-        data = json.loads(text)
-        
-        # Validación mínima de la estructura esperada
-        if not isinstance(data.get("agr_list"), list) or not isinstance(data.get("opm_list"), list):
-            print("⚠️ La respuesta del LLM no tiene la estructura esperada (agr_list / opm_list).")
-            return None
+            # Limpiar potencial empaquetado Markdown
+            text = text.strip()
+            if text.startswith('```json'):
+                text = text[7:]
+            elif text.startswith('```'):
+                text = text[3:]
+            if text.endswith('```'):
+                text = text[:-3]
+                
+            # Buscar bloque JSON de forma segura
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match:
+                text = match.group(0)
+                
+            data = json.loads(text)
             
-        print("   ✅ Predicción LLM Extrayendo Cifras Exitosamente.")
-        return data
-        
-    except Exception as e:
-        print(f"❌ Error al contactar la API de Gemini o parsear JSON: {e}")
-        return None
+            # Validación mínima de la estructura esperada
+            if not isinstance(data.get("agr_list"), list) or not isinstance(data.get("opm_list"), list):
+                print("⚠️ La respuesta del LLM no tiene la estructura esperada (agr_list / opm_list).")
+                return None
+                
+            print("   ✅ Predicción LLM Extrayendo Cifras Exitosamente.")
+            return data
+
+        except Exception as e:
+            error_str = str(e)
+            is_unavailable = "503" in error_str or "UNAVAILABLE" in error_str or "high demand" in error_str
+            
+            if is_unavailable and attempt < max_retries:
+                sleep_time = base_delay * (2 ** (attempt - 1))
+                print(f"⚠️️ Servidor de Gemini saturado (503). Intento {attempt}/{max_retries}. Reintentando en {sleep_time}s...")
+                time.sleep(sleep_time)
+            else:
+                print(f"❌ Error al contactar la API de Gemini o parsear JSON: {e}")
+                return None
+
+    return None
