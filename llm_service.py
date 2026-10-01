@@ -9,6 +9,8 @@ def get_llm_projections(ticker, industry, current_margins, rfr, base_revenue_gro
     """
     Connects to Google's Gemini API to request advanced fundamental analysis 
     for 10-year AGR and OPM projections using the explicit Analyst Prompt.
+    
+    Usa la forma recomendada (Chat) para evitar el warning de Automatic Function Calling.
     """
     load_dotenv()
     
@@ -27,6 +29,7 @@ def get_llm_projections(ticker, industry, current_margins, rfr, base_revenue_gro
         return None
         
     print("🧠 Invocando al Modelo Gemini Advanced (aistudio.google.com)...")
+    
     try:
         client = genai.Client(api_key=api_key)
         
@@ -63,9 +66,10 @@ Debes devolver OBLIGATORIAMENTE un JSON que sea programacionalmente parseable, c
     "opm_list": [0.45, 0.46, 0.47, 0.48, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49]
 }}
 """
-        response = client.models.generate_content(
+
+        # Forma recomendada: usar Chat en lugar de Models.generate_content
+        chat = client.chats.create(
             model='gemini-3.6-flash',
-            contents=full_prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 safety_settings=[
@@ -88,6 +92,8 @@ Debes devolver OBLIGATORIAMENTE un JSON que sea programacionalmente parseable, c
                 ]
             )
         )
+
+        response = chat.send_message(full_prompt)
         text = response.text
         
         # Clean potential markdown wrapping
@@ -99,14 +105,21 @@ Debes devolver OBLIGATORIAMENTE un JSON que sea programacionalmente parseable, c
         if text.endswith('```'):
             text = text[:-3]
             
-        # Or safely search for JSON block using regex
+        # Buscar bloque JSON de forma segura
         match = re.search(r'\{.*\}', text, re.DOTALL)
         if match:
             text = match.group(0)
             
         data = json.loads(text)
+        
+        # Validación mínima de la estructura esperada
+        if not isinstance(data.get("agr_list"), list) or not isinstance(data.get("opm_list"), list):
+            print("⚠️ La respuesta del LLM no tiene la estructura esperada (agr_list / opm_list).")
+            return None
+            
         print("   ✅ Predicción LLM Extrayendo Cifras Exitosamente.")
         return data
+        
     except Exception as e:
         print(f"❌ Error al contactar la API de Gemini o parsear JSON: {e}")
         return None
