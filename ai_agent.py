@@ -7,7 +7,7 @@ from valuation_engine import calculate_valuation
 import yfinance as yf
 import json
 
-def run_auto_valuation(ticker_symbol, target_currency=None):
+def run_auto_valuation(ticker_symbol, target_currency=None, company_name=None):
     print(f"🚀 Iniciando Agente de Valoración Avanzado para: {ticker_symbol}")
     
     # 1. Gather Data
@@ -35,7 +35,16 @@ def run_auto_valuation(ticker_symbol, target_currency=None):
     print(f"   -> Risk Free Rate (RFR) Asumido: {rfr:.2%}")
     
     # B. Damodaran Metrics
-    industry = raw_data.get('industry', 'Technology')
+    industry_yf = raw_data.get('industry', 'Technology')
+    long_name = raw_data.get('longName', ticker_symbol)
+    
+    from damodaran_service import get_damodaran_industry_from_indname
+    
+    # Direct lookup of Damodaran industry by company name (Industry Group column)
+    # Prefer explicit company name input; fallback to Yahoo long name
+    lookup_name = company_name if company_name else long_name
+    industry = get_damodaran_industry_from_indname(ticker_symbol, lookup_name) or industry_yf
+        
     damodaran_data = get_damodaran_metrics(industry)
     damodaran_erp = get_damodaran_erp()
     matched_ind = damodaran_data.get('matched_industry', industry)
