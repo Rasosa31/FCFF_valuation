@@ -235,7 +235,7 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("🧠 Automated AI Agent (BETA)")
 
 ai_ticker = st.sidebar.text_input("Ticker Symbol (e.g. NVDA)", "", key="ai_ticker_input").strip().upper()
-
+company_name = st.sidebar.text_input("Nombre de la compañía (opcional)", "", key="company_name_input").strip()
 ai_currency = st.sidebar.selectbox("Currency Override", ["USD", "EUR", "GBP", "COP", "BRL"], index=0, key="ai_currency")
 
 if st.sidebar.button("Run Autonomous Valuation", type="primary"):
@@ -248,7 +248,7 @@ if st.sidebar.button("Run Autonomous Valuation", type="primary"):
 
                 from ai_agent import run_auto_valuation
 
-                result = run_auto_valuation(ai_ticker, target_currency=ai_currency)
+                result = run_auto_valuation(ai_ticker, target_currency=ai_currency, company_name=company_name)
 
                 if result:
 
@@ -298,6 +298,36 @@ def float_input(label, default_val, key, format="%.2f"):
 
     return st.sidebar.number_input(label, format=format, key=key)
 
+def pct_input(label, default_decimal, key):
+    """Show a percentage field in the sidebar.
+
+    Internally values are stored as decimals (e.g. 0.0414).
+    The widget displays and accepts values multiplied by 100 (e.g. 4.14 for 4.14%).
+    The user may type "4.14" or "4.14" – the box always shows the % scale.
+    Returns the value as a decimal (e.g. 0.0414).
+    """
+    # Initialise session state in decimal form; convert to % for the widget.
+    if key not in st.session_state:
+        st.session_state[key] = float(default_decimal)
+
+    # The widget key stores the % value to avoid conflicts with the decimal key.
+    pct_key = f"{key}__pct_display"
+    if pct_key not in st.session_state:
+        st.session_state[pct_key] = round(st.session_state[key] * 100, 6)
+
+    pct_val = st.sidebar.number_input(
+        f"{label} (%)",
+        #value=st.session_state[pct_key],
+        format="%.2f",
+        step=0.01,
+        key=pct_key,
+    )
+    decimal_val = pct_val / 100.0
+    # Keep the underlying decimal key in sync so JSON save/load still works.
+    st.session_state[key] = decimal_val
+    return decimal_val
+
+
 st.sidebar.subheader("1. Base Data")
 
 revenue_base_year = float_input("Revenue Base Year", 175294, "rev_base")
@@ -322,11 +352,11 @@ proj_type = st.sidebar.radio("Input Method for Rates", ["Single Value", "Year-by
 
 if proj_type == "Single Value":
 
-    agr_rate = float_input("Annual Revenue Growth Rate", 0.05, "agr_single", format="%.4f")
+    agr_rate = pct_input("Annual Revenue Growth Rate", 0.05, "agr_single")
 
-    op_margin = float_input("Operating Margin", 0.10, "opm_single", format="%.4f")
+    op_margin = pct_input("Operating Margin", 0.10, "opm_single")
 
-    et_rate = float_input("Effective Tax Rate", 0.14, "etr_single", format="%.4f")
+    et_rate = pct_input("Effective Tax Rate", 0.14, "etr_single")
 
     val = st.sidebar.text_input("Sales to Capital Ratio (StCR) Projection (leave empty to use current)", key="stcr_single").strip()
 
@@ -345,26 +375,35 @@ else:
     st.sidebar.markdown("**Annual Revenue Growth Rate**")
 
     for i in range(1, 11):
-
+        pct_key = f"agr_list_{i}__pct_display"
         if f"agr_list_{i}" not in st.session_state: st.session_state[f"agr_list_{i}"] = 0.05
+        if pct_key not in st.session_state: st.session_state[pct_key] = round(st.session_state[f"agr_list_{i}"] * 100, 6)
+        pv = st.sidebar.number_input(f"AGR Year {i} (%)", format="%.2f", step=0.01, key=pct_key)
+        st.session_state[f"agr_list_{i}"] = pv / 100.0
+        agr_rate.append(pv / 100.0)
 
-        agr_rate.append(st.sidebar.number_input(f"AGR Year {i}", format="%.4f", key=f"agr_list_{i}"))
 
     st.sidebar.markdown("**Operating Margin**")
 
-    for i in range(1, 11): 
-
+    for i in range(1, 11):
+        pct_key = f"opm_list_{i}__pct_display"
         if f"opm_list_{i}" not in st.session_state: st.session_state[f"opm_list_{i}"] = 0.10
+        if pct_key not in st.session_state: st.session_state[pct_key] = round(st.session_state[f"opm_list_{i}"] * 100, 6)
+        pv = st.sidebar.number_input(f"Op Margin Year {i} (%)", format="%.2f", step=0.01, key=pct_key)
+        st.session_state[f"opm_list_{i}"] = pv / 100.0
+        op_margin.append(pv / 100.0)
 
-        op_margin.append(st.sidebar.number_input(f"Op Margin Year {i}", format="%.4f", key=f"opm_list_{i}"))
 
     st.sidebar.markdown("**Effective Tax Rate**")
 
-    for i in range(1, 11): 
-
+    for i in range(1, 11):
+        pct_key = f"etr_list_{i}__pct_display"
         if f"etr_list_{i}" not in st.session_state: st.session_state[f"etr_list_{i}"] = 0.14
+        if pct_key not in st.session_state: st.session_state[pct_key] = round(st.session_state[f"etr_list_{i}"] * 100, 6)
+        pv = st.sidebar.number_input(f"Tax Rate Year {i} (%)", format="%.2f", step=0.01, key=pct_key)
+        st.session_state[f"etr_list_{i}"] = pv / 100.0
+        et_rate.append(pv / 100.0)
 
-        et_rate.append(st.sidebar.number_input(f"Tax Rate Year {i}", format="%.4f", key=f"etr_list_{i}"))
 
     st.sidebar.markdown("**Sales to Capital Ratio (StCR)**")
 
@@ -378,23 +417,24 @@ else:
 
 terminal_stcr_input = st.sidebar.text_input("Terminal StCR (leave empty to use current)", key="terminal_stcr_input").strip()
 
-marginal_tax_rate = float_input("Marginal Tax Rate", 0.25, "mar_tax", format="%.4f")
+marginal_tax_rate = pct_input("Marginal Tax Rate", 0.25, "mar_tax")
 
 st.sidebar.subheader("3. Terminal Year")
 
 terminal_reinvestment_method = st.sidebar.radio(
 
-    "Terminal Reinvestment Method", 
+    "Terminal Reinvestment Method",
 
-    ["Terminal ROIC (Damodaran Base)", "Terminal StCR"], 
+    ["Terminal ROIC (Damodaran Base)", "Terminal StCR"],
 
     key="terminal_reinv_method"
 
 )
 
-RFR = float_input("Risk Free Rate (RFR) / Terminal Growth", 0.0445, "rfr", format="%.4f")
+RFR = pct_input("Risk Free Rate (RFR) / Terminal Growth", 0.0445, "rfr")
 
-terminal_operating_margin = float_input("Terminal Operating Margin", 0.10, "term_opm", format="%.4f")
+terminal_operating_margin = pct_input("Terminal Operating Margin", 0.10, "term_opm")
+
 
 terminal_wacc_input = st.sidebar.text_input("Terminal WACC (leave empty to use current)", "", key="terminal_wacc_input")
 
@@ -486,7 +526,7 @@ erp_calc_method = st.sidebar.radio("Método de Ingreso:", ["ERP Único", "Múlti
 
 if erp_calc_method == "ERP Único":
 
-    ERP = float_input("Equity Risk Premium (ERP)", 0.0429, "erp", format="%.4f")
+    ERP = pct_input("Equity Risk Premium (ERP)", 0.0429, "erp")
 
 else:
 
@@ -494,7 +534,7 @@ else:
 
     if "erp_df" not in st.session_state:
 
-        st.session_state["erp_df"] = pd.DataFrame([{"Región/País": "", "Ventas": 0.0, "ERP (%)": 0.0429}] * 5)
+        st.session_state["erp_df"] = pd.DataFrame([{"Región/País": "", "Ventas": 0.0, "ERP (%)": 4.29}] * 5)
 
         edited_erp_df = st.sidebar.data_editor(st.session_state["erp_df"], num_rows="dynamic", key="erp_editor")
 
@@ -502,7 +542,8 @@ else:
 
         weighted_erp = (edited_erp_df["Ventas"] * edited_erp_df["ERP (%)"]).sum() / total_ventas_erp if total_ventas_erp > 0 else 0.0
 
-        st.sidebar.info(f"ERP Ponderado: **{weighted_erp:.4f}**")
+        st.sidebar.info(f"ERP Ponderado: **{weighted_erp:.2f}%**")
+
 
         ERP = weighted_erp
 
@@ -578,7 +619,8 @@ if options_calc_method == "Usar Black-Scholes":
 
     option_maturity = float_input("Average Option Maturity (Years)", 0, "opt_mat")
 
-    stock_volatility = float_input("Stock Volatility (e.g. 0.3 for 30%)", 0.0, "volatility", format="%.4f")
+    stock_volatility = pct_input("Stock Volatility", 0.0, "volatility")
+
 
     manual_options_value = 0.0
 
@@ -1086,20 +1128,21 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
             st.markdown(f"**1. Tasa Libre de Riesgo (RFR):** `{inputs['RFR']:.4f}`")
             st.markdown(f"**2. Prima de Riesgo (ERP):** `{inputs['ERP']:.4f}`")
+
             st.markdown(
                 f"**3. Levered Beta ($\\beta_{{lev}}$):** "
                 f"`{results['levered_beta']:.4f}`"
             )
 
             if has_country_risk:
-                st.markdown(f"**4. λ (Exposición al Riesgo País):** `{lam_r:.2f}`")
+                st.markdown(f"**4. λ (Exposición al Riesgo País):** `{lam_r:.4f}`")
                 st.markdown(f"**5. CRP (Country Risk Premium):** `{crp_r:.4f}`")
 
                 st.latex(r"K_e = RFR + (\beta_{lev} \times ERP) + (\lambda \times CRP)")
                 st.latex(
                     fr"K_e = {inputs['RFR']:.4f} + "
                     fr"({results['levered_beta']:.4f} \times {inputs['ERP']:.4f}) + "
-                    fr"({lam_r:.2f} \times {crp_r:.4f})"
+                    fr"({lam_r:.4f} \times {crp_r:.4f})"
                 )
                 st.latex(fr"K_e = {results['cost_of_equity']:.4f}")
             else:
@@ -1110,7 +1153,8 @@ if 'df' in st.session_state and 'results' in st.session_state:
                     fr"= {results['cost_of_equity']:.4f}"
                 )
 
-            st.success(f"**Cost of Equity ($K_e$):** `{results['cost_of_equity']:.2%}`")
+
+            st.success(f"**Cost of Equity ($K_e$):** `{results['cost_of_equity']:.4f}`")
 
             st.markdown("---")
 
@@ -1137,19 +1181,20 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
             st.markdown(f"**2. Deuda (Book Value):** `${inputs['debt_base_year']:,.2f}`")
 
-            st.markdown(f"**3. Tasa Impositiva Marginal ($t$):** `{inputs['marginal_tax_rate']:.2%}`")
+            st.markdown(f"**3. Tasa Impositiva Marginal ($t$):** `{inputs['marginal_tax_rate']:.2f}`")
 
             pretax = results.get('pretax_cost_of_debt', 0.0)
 
             st.latex(r"\text{Pre-Tax Cost of Debt} = \frac{\text{Gastos por Intereses}}{\text{Deuda}}")
             st.latex(
-                fr"\text{{Pre-Tax}} = \frac{{{inputs['interes_expenses']:,.2f}}}{{{inputs['debt_base_year']:,.2f}}} = {pretax:.4f}"
+                fr"\text{{Pre-Tax}} = \frac{{{inputs['interes_expenses']:,.2f}}}{{{inputs['debt_base_year']:,.2f}}} = {pretax:.2f}"
             )
 
             st.latex(r"K_d = \text{Pre-Tax} \times (1 - t)")
-            st.latex(fr"K_d = {pretax:.4f} \times (1 - {inputs['marginal_tax_rate']:.4f}) = {results['cost_of_debt']:.4f}")
+            st.latex(fr"K_d = {pretax:.2f} \times (1 - {inputs['marginal_tax_rate']:.2f}) = {results['cost_of_debt']:.2f}")
 
-            st.success(f"**Cost of Debt After-Tax ($K_d$):** `{results['cost_of_debt']:.2%}`")
+
+            st.success(f"**Cost of Debt After-Tax ($K_d$):** `{results['cost_of_debt']:.2f}`")
 
             st.markdown("---")
 
@@ -1181,6 +1226,7 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
         st.latex(fr"WACC = ({we:.4f} \times {ke:.4f}) + ({wd:.4f} \times {kd:.4f})")
 
+
         st.success(f"### WACC Calculado: {wacc_val:.2%}")
 
         st.caption("Este es el Costo de Capital utilizado para descontar los flujos de caja libre (FCFF) de la compañía.")
@@ -1191,15 +1237,24 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
         st.markdown("Basado en el módulo `sales_to_capital.py`.")
 
-        stcr_df = pd.DataFrame({
+        # Paso a paso del cálculo
+        st.subheader("🔢 Cálculo paso a paso")
+        st.markdown("**1. Capital Invertido Base** (Equity + Debt - Cash)")
+        st.latex(fr"C_{{\text{{base}}}} = {inputs['equity_base_year']:,.0f} + {inputs['debt_base_year']:,.0f} - {inputs['cash_base_year']:,.0f} = {results['invested_capital_base']:,.0f}")
+        st.markdown("**2. Ajuste por I&D** (Capital adicional)")
+        st.latex(fr"\text{{RD Adj}} = {inputs['base_r_d_expenses']:,.0f} + {inputs['minus_oneyear_r_d_expense']:,.0f}\times0.75 + {inputs['minus_twoyear_r_d_expense']:,.0f}\times0.50 = {results['rd_capital_adjustment']:,.0f}")
+        st.markdown("**3. Capital Invertido Ajustado** (Base + RD Adj)")
+        st.latex(fr"C_{{\text{{adj}}}} = {results['invested_capital_base']:,.0f} + {results['rd_capital_adjustment']:,.0f} = {results['invested_capital_adj']:,.0f}")
+        st.markdown("**4. Ratio Sales / Capital (Base)**")
+        st.latex(fr"\frac{{\text{{Ventas}}}}{{C_{{\text{{base}}}}}} = \frac{{{inputs['revenue_base_year']:,.0f}}}{{{results['invested_capital_base']:,.0f}}} = {results['sales_to_capital_ratio_base']:.2f}")
+        st.markdown("**5. Ratio Sales / Capital (Ajustado)**")
+        st.latex(fr"\frac{{\text{{Ventas}}}}{{C_{{\text{{adj}}}}}} = \frac{{{inputs['revenue_base_year']:,.0f}}}{{{results['invested_capital_adj']:,.0f}}} = {results['sales_to_capital_ratio_adj']:.2f}")
 
+        # Tabla resumen
+        st.table(pd.DataFrame({
             "Métrica": ["Capital Invertido Base", "Capital Invertido Ajustado (con R&D)", "Sales to Capital Ratio (Base)", "Sales to Capital Ratio (Ajustado)"],
-
             "Valor": [f"${results['invested_capital_base']:,.0f}", f"${results['invested_capital_adj']:,.0f}", f"{results['sales_to_capital_ratio_base']:.2f}", f"{results['sales_to_capital_ratio_adj']:.2f}"]
-
-        })
-
-        st.table(stcr_df)
+        }))
 
     with tab6:
 
@@ -1253,7 +1308,8 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
             st.latex(r"\text{Tax Adj} = \text{Income Adj} \times \text{Marginal Tax Rate}")
 
-            st.latex(fr"\text{{Tax Adj}} = {results['rd_income_adjust']:,.0f} \times {inputs['marginal_tax_rate']:.4f} = {results['rd_tax_adjust']:,.0f}")
+            st.latex(fr"\text{{Tax Adj}} = {results['rd_income_adjust']:,.0f} \times {inputs['marginal_tax_rate']:.2%} = {results['rd_tax_adjust']:,.0f}")
+
 
     with tab7:
 
