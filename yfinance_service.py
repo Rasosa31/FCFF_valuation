@@ -128,6 +128,7 @@ def get_financial_data(ticker_symbol, target_currency=None, max_retries=3):
             
             # 4. Meta Information
             industry = info.get('industry', 'Unknown')
+            longName = info.get('longName', ticker_symbol)
             country = info.get('country', 'Unknown')
             currency = info.get('currency', 'USD')
             financial_currency = info.get('financialCurrency', currency)
@@ -218,6 +219,7 @@ def get_financial_data(ticker_symbol, target_currency=None, max_retries=3):
                 
                 # New Additions
                 'industry': industry,
+                'longName': longName,
                 'country': country,
                 'currency': target_currency if target_currency else currency,
                 'financialCurrency': target_currency if target_currency else financial_currency,
