@@ -139,3 +139,72 @@ Debes devolver OBLIGATORIAMENTE un JSON que sea programacionalmente parseable, c
                 return None
 
     return None
+def get_damodaran_industry_with_llm(ticker, company_name, yf_industry, damodaran_industries):
+    """
+    Asks the LLM to classify the company strictly into one of Damodaran's industries.
+    """
+    load_dotenv()
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        try:
+            import streamlit as st
+            api_key = st.secrets.get("GEMINI_API_KEY")
+        except:
+            pass
+            
+    if not api_key or api_key == "PEGA_AQUÍ_TU_API_KEY":
+        return yf_industry
+        
+    print(f"🧠 Consultando al LLM para mapear '{ticker}' según indname.xls de Damodaran...")
+    
+    industries_list_str = "\n".join([f"- {ind}" for ind in damodaran_industries])
+    
+    prompt = f"""
+Eres un analista financiero experto en la metodología de Aswath Damodaran. 
+Tu tarea es clasificar la empresa {company_name} (Ticker: {ticker}) en la industria correcta según la base de datos exacta de Damodaran (el archivo indname.xls).
+La empresa ha sido clasificada por Yahoo Finance como '{yf_industry}'.
+
+Aquí tienes la lista exacta de las 96 industrias de Damodaran:
+{industries_list_str}
+
+Responde ÚNICAMENTE devolviendo un JSON con la estructura:
+{{
+    "industry": "Nombre Exacto de la Industria de Damodaran"
+}}
+Asegúrate de que el nombre sea IDÉNTICO letra por letra a uno de la lista provista.
+"""
+
+    max_retries = 2
+    for attempt in range(1, max_retries + 1):
+        try:
+            client = genai.Client(api_key=api_key)
+            chat = client.chats.create(
+                model='gemini-3.6-flash',
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
+            response = chat.send_message(prompt)
+            text = response.text.strip()
+            
+            if text.startswith('```json'): text = text[7:]
+            elif text.startswith('```'): text = text[3:]
+            if text.endswith('```'): text = text[:-3]
+            
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match: text = match.group(0)
+            
+            data = json.loads(text)
+            chosen_industry = data.get("industry", yf_industry)
+            if chosen_industry in damodaran_industries:
+                print(f"   ✅ LLM clasificó {ticker} como: '{chosen_industry}'")
+                return chosen_industry
+            else:
+                print(f"   ⚠️ LLM devolvió industria no válida: '{chosen_industry}'. Usando fallback.")
+                return yf_industry
+        except Exception as e:
+            if attempt < max_retries:
+                time.sleep(1)
+            else:
+                print(f"❌ Error al consultar industria al LLM: {e}")
+                return yf_industry
+    
+    return yf_industry
