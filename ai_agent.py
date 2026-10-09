@@ -36,14 +36,26 @@ def run_auto_valuation(ticker_symbol, target_currency=None, company_name=None):
     
     # B. Damodaran Metrics
     industry_yf = raw_data.get('industry', 'Technology')
-    long_name = raw_data.get('longName', ticker_symbol)
-    
+    long_name = (
+        raw_data.get('longName')
+        or raw_data.get('shortName')
+        or ticker_symbol
+    )
+
     from damodaran_service import get_damodaran_industry_from_indname
-    
-    # Direct lookup of Damodaran industry by company name (Industry Group column)
-    # Prefer explicit company name input; fallback to Yahoo long name
+
+    # Direct lookup of Damodaran industry by ticker + company name
+    # Prefer explicit company_name argument; fallback to Yahoo longName
     lookup_name = company_name if company_name else long_name
-    industry = get_damodaran_industry_from_indname(ticker_symbol, lookup_name) or industry_yf
+    print(f"   -> Buscando industria Damodaran para: ticker={ticker_symbol} | name={lookup_name}")
+
+    industry = get_damodaran_industry_from_indname(ticker_symbol, lookup_name)
+
+    if industry:
+        print(f"   ✅ Industria Damodaran encontrada: {industry}")
+    else:
+        print(f"   ⚠️ No se encontró en indname_cache. Usando fallback de Yahoo: {industry_yf}")
+        industry = industry_yf
         
     damodaran_data = get_damodaran_metrics(industry)
     damodaran_erp = get_damodaran_erp()
@@ -309,8 +321,13 @@ def run_auto_valuation(ticker_symbol, target_currency=None, company_name=None):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="AI Valuation Agent")
-    parser.add_argument("ticker", type=str, help="Ticker symbol (e.g., NVDA, EC)")
+    parser.add_argument("ticker", type=str, help="Ticker symbol (e.g., NVDA, ECL)")
+    parser.add_argument("--name", type=str, default=None, help="Company name (helps disambiguate industry, e.g. 'Ecolab Inc.')")
     parser.add_argument("--currency", type=str, default=None, help="Target currency for valuation (e.g., USD)")
     args = parser.parse_args()
-    
-    run_auto_valuation(args.ticker, target_currency=args.currency)
+
+    run_auto_valuation(
+        args.ticker,
+        target_currency=args.currency,
+        company_name=args.name
+    )
