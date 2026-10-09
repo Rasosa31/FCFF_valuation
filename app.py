@@ -234,54 +234,55 @@ st.sidebar.markdown("---")
 
 st.sidebar.subheader("🧠 Automated AI Agent (BETA)")
 
-ai_ticker = st.sidebar.text_input("Ticker Symbol (e.g. NVDA)", "", key="ai_ticker_input").strip().upper()
-company_name = st.sidebar.text_input("Nombre de la compañía (opcional)", "", key="company_name_input").strip()
-ai_currency = st.sidebar.selectbox("Currency Override", ["USD", "EUR", "GBP", "COP", "BRL"], index=0, key="ai_currency")
+ai_ticker = st.sidebar.text_input(
+    "Ticker Symbol (e.g. NVDA)", "", key="ai_ticker_input"
+).strip().upper()
+
+ai_company_name = st.sidebar.text_input(
+    "Nombre de la compañía (opcional, ayuda a desambiguar)",
+    "",
+    key="ai_company_name_input"
+).strip()
+
+ai_currency = st.sidebar.selectbox(
+    "Currency Override",
+    ["USD", "EUR", "GBP", "COP", "BRL"],
+    index=0,
+    key="ai_currency"
+)
 
 if st.sidebar.button("Run Autonomous Valuation", type="primary"):
-
     if ai_ticker:
-
         with st.sidebar.status(f"Evaluating {ai_ticker}...", expanded=True) as status:
-
             try:
-
                 from ai_agent import run_auto_valuation
 
-                result = run_auto_valuation(ai_ticker, target_currency=ai_currency, company_name=company_name)
+                result = run_auto_valuation(
+                    ai_ticker,
+                    target_currency=ai_currency,
+                    company_name=ai_company_name if ai_company_name else None
+                )
 
                 if result:
-
                     export_app_format, analysis_text = result
 
                     for k, v in export_app_format.items():
-
                         if "stcr_" in k:
-
                             st.session_state[k] = str(v)
-
                         else:
-
                             st.session_state[k] = v
 
                     st.session_state['ai_analysis_text'] = analysis_text
-
                     status.update(label="Valuation Injection Complete!", state="complete", expanded=False)
-
                     st.rerun()
-
                 else:
-
                     status.update(label="Falló la extracción o cálculo.", state="error")
 
             except Exception as e:
-
                 status.update(label=f"Explosión IA: {e}", state="error")
-
     else:
-
         st.sidebar.error("Ingrese Ticker válido")
-
+        
 st.sidebar.markdown("---")
 
 st.sidebar.subheader("0. General Info")
