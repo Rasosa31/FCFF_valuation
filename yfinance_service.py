@@ -219,7 +219,6 @@ def get_financial_data(ticker_symbol, target_currency=None, max_retries=3):
                 
                 # New Additions
                 'industry': industry,
-                #'longName': longName,
                 'country': country,
                 'currency': target_currency if target_currency else currency,
                 'financialCurrency': target_currency if target_currency else financial_currency,
@@ -227,7 +226,7 @@ def get_financial_data(ticker_symbol, target_currency=None, max_retries=3):
                 'historical_avg_op_margin': historical_avg_op_margin,
                 'implied_volatility': implied_volatility,
                 'longName': info.get('longName') or info.get('shortName') or ticker_symbol,
-            }
+            }                               
             
         except Exception as e:
             error_msg = str(e).lower()
