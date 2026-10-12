@@ -271,6 +271,9 @@ if st.sidebar.button("Run Autonomous Valuation", type="primary"):
                             st.session_state[k] = str(v)
                         else:
                             st.session_state[k] = v
+                            # Sincronizar las cajas de porcentaje con su vista visual multiplicada por 100
+                            if isinstance(v, (int, float)) and any(p in k for p in ["agr", "opm", "etr", "tax", "rfr", "term_opm", "volatility", "erp", "crp"]):
+                                st.session_state[f"{k}__pct_display"] = float(v) * 100.0
 
                     st.session_state['ai_analysis_text'] = analysis_text
                     status.update(label="Valuation Injection Complete!", state="complete", expanded=False)
