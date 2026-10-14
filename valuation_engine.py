@@ -125,7 +125,7 @@ def calculate_valuation(inputs):
     # Reinvestment & StCR
     sales_to_capital = [sales_to_capital_ratio_base, sales_to_capital_ratio_adj]
     sales_to_capital.extend(stcr_list)
-    sales_to_capital.append(0) # Terminal
+    sales_to_capital.append(0.0) # Terminal placeholder
     
     reinvestment = [0, 0] # Year 0 and 0A
     for i in range(2, 12):
@@ -135,18 +135,31 @@ def calculate_valuation(inputs):
     
     roic_10 = ebit_less_taxes[11] / (invested_capital_adj + sum(reinvestment[2:12])) if (invested_capital_adj + sum(reinvestment[2:12])) != 0 else 0
     
-    if inputs.get('terminal_reinvestment_method') == "Terminal StCR":
-        term_stcr_str = inputs.get('terminal_stcr_input', "").strip()
-        if term_stcr_str != "":
-            term_stcr_val = float(term_stcr_str)
+    # ── Terminal Reinvestment Calculation ──────────────────────────────────────
+    term_stcr_raw = str(inputs.get('terminal_stcr_input', "") or "").replace(",", ".").strip()
+    # Si el usuario ingresó manualmente un valor en Terminal StCR O seleccionó el método 'Terminal StCR'
+    use_stcr_reinvestment = (inputs.get('terminal_reinvestment_method') == "Terminal StCR") or (term_stcr_raw != "")
+
+    if use_stcr_reinvestment:
+        if term_stcr_raw != "":
+            try:
+                term_stcr_val = float(term_stcr_raw)
+            except ValueError:
+                term_stcr_val = sales_to_capital[11]
         else:
-            term_stcr_val = sales_to_capital[11] # Fallback to Year 10 StCR
+            term_stcr_val = sales_to_capital[11] # Fallback to Year 10 StCR (use current)
             
-        terminal_reinvestment = (ingresos[12] - ingresos[11]) / term_stcr_val if term_stcr_val != 0 else 0
+        delta_sales_term = ingresos[12] - ingresos[11]
+        terminal_reinvestment = delta_sales_term / term_stcr_val if term_stcr_val != 0 else 0
         sales_to_capital[12] = term_stcr_val
     else:
         frat = inputs['RFR'] / roic_10 if roic_10 != 0 else 0
         terminal_reinvestment = frat * ebit_less_taxes[12]
+        delta_sales_term = ingresos[12] - ingresos[11]
+        if terminal_reinvestment != 0:
+            sales_to_capital[12] = delta_sales_term / terminal_reinvestment
+        else:
+            sales_to_capital[12] = sales_to_capital[11]
         
     reinvestment.append(terminal_reinvestment)
     
@@ -245,6 +258,8 @@ def calculate_valuation(inputs):
     results = {
         'WACC': wacc,
         'terminal_wacc': term_wacc,
+        'terminal_stcr': sales_to_capital[12],
+        'terminal_reinvestment': terminal_reinvestment,
         'terminal_value': terminal_value,
         'pv_terminal_value': valor_presente_terminal_value,
         'pv_cf_1_10': pv_cf_1_10,

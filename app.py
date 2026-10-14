@@ -152,7 +152,28 @@ if 'ai_analysis_text' in st.session_state and st.session_state['ai_analysis_text
 
     with st.expander("🤖 Resumen Ejecutivo: Análisis Fundamental de la IA", expanded=True):
 
+        col_dl1, col_dl2 = st.columns([3, 1])
+
+        col_dl1.caption("📄 Incluye Perfil Estratégico, Ciclo de Vida, Moat, Retos Competitivos, y Narrativas de Ingresos y Márgenes.")
+
+        cur_company = st.session_state.get('company_name') or st.session_state.get('ai_ticker_input') or "Analisis"
+
+        col_dl2.download_button(
+
+            label="📥 Descargar Reporte (.md)",
+
+            data=st.session_state['ai_analysis_text'],
+
+            file_name=f"Reporte_Valoracion_IA_{cur_company}.md",
+
+            mime="text/markdown",
+
+            key="dl_report_md_top"
+
+        )
+
         st.markdown(st.session_state['ai_analysis_text'])
+
 
 st.sidebar.header("Input Variables")
 
@@ -417,10 +438,6 @@ else:
 
         stcr_projection.append(val)
 
-    st.sidebar.markdown("**Terminal Sales to Capital Ratio**")
-
-terminal_stcr_input = st.sidebar.text_input("Terminal StCR (leave empty to use current)", key="terminal_stcr_input").strip()
-
 marginal_tax_rate = pct_input("Marginal Tax Rate", 0.25, "mar_tax")
 
 st.sidebar.subheader("3. Terminal Year")
@@ -435,12 +452,33 @@ terminal_reinvestment_method = st.sidebar.radio(
 
 )
 
+if "terminal_stcr_input" not in st.session_state:
+
+    st.session_state["terminal_stcr_input"] = ""
+
+terminal_stcr_input = st.sidebar.text_input(
+
+    "Terminal StCR (leave empty to use current)",
+
+    key="terminal_stcr_input"
+
+).strip()
+
 RFR = pct_input("Risk Free Rate (RFR) / Terminal Growth", 0.0445, "rfr")
 
 terminal_operating_margin = pct_input("Terminal Operating Margin", 0.10, "term_opm")
 
+if "terminal_wacc_input" not in st.session_state:
 
-terminal_wacc_input = st.sidebar.text_input("Terminal WACC (leave empty to use current)", "", key="terminal_wacc_input")
+    st.session_state["terminal_wacc_input"] = ""
+
+terminal_wacc_input = st.sidebar.text_input(
+
+    "Terminal WACC (%) (leave empty to use current)",
+
+    key="terminal_wacc_input"
+
+).strip()
 
 st.sidebar.subheader("4. Market & Equity")
 
@@ -557,6 +595,9 @@ use_country_risk = st.sidebar.checkbox("Considerar riesgo país (λ, CRP)", va
 
 if use_country_risk:
 
+    if "lambda_input" not in st.session_state:
+        st.session_state["lambda_input"] = 0.0
+
     lambda_val = st.sidebar.number_input(
 
         "λ (exposición al riesgo país)",
@@ -564,8 +605,6 @@ if use_country_risk:
         min_value=0.0,
 
         max_value=1.0,
-
-        value=0.0,
 
         step=0.01,
 
@@ -575,6 +614,9 @@ if use_country_risk:
 
     )
 
+    if "crp_input" not in st.session_state:
+        st.session_state["crp_input"] = 0.0
+
     crp_val = st.sidebar.number_input(
 
         "CRP (Country Risk Premium %)",
@@ -583,8 +625,6 @@ if use_country_risk:
 
         max_value=100.0,
 
-        value=0.0,
-
         step=0.01,
 
         key="crp_input",
@@ -592,6 +632,7 @@ if use_country_risk:
         format="%.2f",
 
     )
+
 
 else:
 
@@ -708,13 +749,26 @@ inputs = {
 
 if terminal_wacc_input.strip() != "":
 
+    cleaned_wacc = terminal_wacc_input.replace("%", "").replace(",", ".").strip()
+
     try:
 
-        inputs['terminal_wacc'] = float(terminal_wacc_input)
+        val_wacc = float(cleaned_wacc)
+
+        # Si el usuario ingresó en formato porcentaje (ej: 12 para 12%), convertir a decimal dividiendo por 100
+        if val_wacc >= 1.0:
+
+            inputs['terminal_wacc'] = val_wacc / 100.0
+
+        else:
+
+            # Si ingresó directamente en formato decimal (ej: 0.12)
+            inputs['terminal_wacc'] = val_wacc
 
     except ValueError:
 
-        st.sidebar.error("Terminal WACC must be a number.")
+        st.sidebar.error("Terminal WACC debe ser un número válido (ej: 12% o 12.0).")
+
 
 
 
@@ -1381,9 +1435,42 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
         st.header("Anotaciones y Perfil de la Empresa")
 
+        if 'ai_analysis_text' in st.session_state and st.session_state['ai_analysis_text']:
+
+            st.subheader("🤖 Reporte Fundamental del Agente de IA (.md)")
+
+            col_t9_1, col_t9_2 = st.columns([3, 1])
+
+            col_t9_1.markdown("Contiene la narrativa estratégica completa: Perfil, Ciclo de Vida, Moat, Retos y Proyecciones Dinámicas.")
+
+            cur_co_t9 = st.session_state.get('company_name') or st.session_state.get('ai_ticker_input') or "Analisis"
+
+            col_t9_2.download_button(
+
+                label="📥 Descargar Reporte (.md)",
+
+                data=st.session_state['ai_analysis_text'],
+
+                file_name=f"Reporte_Valoracion_IA_{cur_co_t9}.md",
+
+                mime="text/markdown",
+
+                key="dl_report_md_tab9"
+
+            )
+
+            with st.expander("📖 Leer Reporte de Valoración IA Completo", expanded=False):
+
+                st.markdown(st.session_state['ai_analysis_text'])
+
+            st.markdown("---")
+
+        st.subheader("Notas Personales del Valuador")
+
         st.markdown("Documenta aquí la descripción de la empresa, tu tesis de inversión y las conclusiones principales. Estas notas se incluirán automáticamente en una pestaña adicional al exportar el archivo de Excel.")
 
-        notes_text = st.text_area("Tesis, Riesgos y Conclusiones:", height=400, key="user_notes")
+        notes_text = st.text_area("Tesis, Riesgos y Conclusiones:", height=300, key="user_notes")
+
 
         if notes_text.strip():
 

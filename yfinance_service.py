@@ -219,6 +219,8 @@ def get_financial_data(ticker_symbol, target_currency=None, max_retries=3):
                 
                 # New Additions
                 'industry': industry,
+                'sector': info.get('sector', ''),
+                'business_summary': info.get('longBusinessSummary', ''),
                 'country': country,
                 'currency': target_currency if target_currency else currency,
                 'financialCurrency': target_currency if target_currency else financial_currency,
