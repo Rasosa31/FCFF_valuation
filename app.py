@@ -181,7 +181,8 @@ if st.sidebar.button("Clear Data (Reset to 0)"):
 
     for key in list(st.session_state.keys()):
 
-        if key in ['df', 'results', 'mc_stats', 'beta_editor', 'erp_editor', 'beta_df', 'erp_df']:
+        # No modificar directamente el estado de los botones de descarga: Streamlit los trata como widgets de solo lectura.
+        if key in ['df', 'results', 'mc_stats', 'beta_editor', 'erp_editor', 'beta_df', 'erp_df', 'dl_report_md_top', 'dl_report_md_tab9']:
 
             continue
 
