@@ -1,9 +1,33 @@
-.env
+# Entorno virtual y dependencias
 .venv/
-__pycache__/
-*.pyc
-.DS_Store
+env/
+venv/
 
-# Agent generated valuation files
+# Variables de entorno y credenciales
+.env
+
+# Archivos de caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDEs y editores
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos binarios pesados de Excel (se utiliza indname_cache.csv)
+*.xls
+*.xlsx
+
+# Archivos generados temporalmente por el Agente de Valoración
 Agent_*_Analysis.md
 Agent_*_Inputs.json
+Notas_Valoracion.txt
+Valuation_*.xlsx
+Montecarlo_Histogram_*.png
