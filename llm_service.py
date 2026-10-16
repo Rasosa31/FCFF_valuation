@@ -60,7 +60,7 @@ def get_llm_projections(
             beta_context = (
                 f"\n⚠️ NOTA BETA: El beta de mercado reportado ({beta:.2f}) se considera un outlier "
                 f"(fuera del rango 0.5 - 2.0). El Agente sustituirá este valor por el beta sectorial "
-                f"({sector_beta:.4f} si está disponible, o 1.00 de referencia). "
+                f"({sector_beta:.4f} asignar beta del sector usando la fuente de Mr Damodaran archivo betas.xls columna C). "
                 f"Explica brevemente esto en el campo 'beta_note'."
             )
         else:
