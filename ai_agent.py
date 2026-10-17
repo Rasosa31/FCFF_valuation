@@ -326,6 +326,7 @@ Los datos históricos reflejan la presión de inversiones recientes y gastos de 
         'marginal_tax_rate':        statutory_tax,
         'stcr_projection':          stcr_list,
         'RFR':                      rfr,
+        'g':                        0.03,
         'terminal_operating_margin':opm_list[-1],
         'terminal_reinvestment_method': "Terminal ROIC (Damodaran Base)",
         'terminal_stcr_input':      "",
@@ -382,6 +383,7 @@ Los datos históricos reflejan la presión de inversiones recientes y gastos de 
         "mar_tax":              statutory_tax,
         "terminal_reinv_method":"Terminal ROIC (Damodaran Base)",
         "rfr":                  rfr,
+        "g":                    0.03,
         "term_opm":             opm_list[-1],
         "terminal_stcr_input":  "",
         "terminal_wacc_input":  "",
@@ -488,11 +490,12 @@ Los datos históricos reflejan la presión de inversiones recientes y gastos de 
 
 ---
 
-## 3. Tasa Libre de Riesgo (RFR) y Equity Risk Premium (ERP)
+## 3. Tasa Libre de Riesgo (RFR), Crecimiento Terminal (g) y Equity Risk Premium (ERP)
 
 - **RFR:** Obtenida del rendimiento del bono del Tesoro de EE.UU. a 10 años (`^TNX`, Yahoo Finance). Valor: **{rfr:.2%}**
+- **Crecimiento Terminal (g):** **3.00%** (tasa de crecimiento perpetuo de ingresos desligada de RFR)
 - **ERP:** Extraída de la web principal de NYU Stern (Damodaran): **{damodaran_erp:.4%}**
-- Estas métricas estandarizan el WACC bajo axiomas actuales de mercado.
+- Estas métricas estandarizan el WACC y la fase terminal bajo axiomas actuales de mercado.
 
 ---
 

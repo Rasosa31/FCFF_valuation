@@ -105,7 +105,7 @@ DATOS DE ENTRADA Y CONTEXTO
 - País / Domicilio Legal: {country or 'United States'}
 - Fecha de Valoración: {today}
 - Margen Operativo Histórico Reciente: {current_margins:.2%}
-- Tasa Libre de Riesgo (RFR / Terminal Growth Base): {rfr:.2%}
+- Tasa Libre de Riesgo (RFR): {rfr:.2%}
 - Crecimiento Estimado de Consenso Analistas (Año 1): {base_revenue_growth:.2%}
 {biz_summary_str}
 

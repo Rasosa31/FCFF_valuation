@@ -54,7 +54,7 @@ def to_excel(df, results, inputs, company_name, valuation_date):
 
             {"Paso": "Terminal WACC", "Fórmula": "Costo de capital del año terminal", "Valor": round(results['terminal_wacc'], 4)},
 
-            {"Paso": "Terminal value", "Fórmula": "Terminal CF / (Terminal WACC - RFR)", "Valor": round(results['terminal_value'], 2)},
+            {"Paso": "Terminal value", "Fórmula": "Terminal CF / (Terminal WACC - g)", "Valor": round(results['terminal_value'], 2)},
 
             {"Paso": "Present Value of Terminal value", "Fórmula": "Terminal Value / (1+WACC)^10", "Valor": round(results['pv_terminal_value'], 2)},
 
@@ -245,6 +245,9 @@ if uploaded_file is not None:
                     else:
 
                         st.session_state[k] = v
+                        if isinstance(v, (int, float)):
+                            pct_k = f"{k}__pct_display"
+                            st.session_state[pct_k] = round(float(v) * 100, 6)
 
             # Seamless execution avoids st.rerun(), preserving unrendered array inputs from GC
 
@@ -465,7 +468,7 @@ terminal_stcr_input = st.sidebar.text_input(
 
 ).strip()
 
-RFR = pct_input("Risk Free Rate (RFR) / Terminal Growth", 0.0445, "rfr")
+g = pct_input("Terminal Growth Rate (g)", 0.03, "g")
 
 terminal_operating_margin = pct_input("Terminal Operating Margin", 0.10, "term_opm")
 
@@ -481,16 +484,9 @@ terminal_wacc_input = st.sidebar.text_input(
 
 ).strip()
 
-st.sidebar.subheader("4. Market & Equity")
+st.sidebar.subheader("4. Cost of Capital & Equity Risk")
 
-shares_outstanding = float_input("Shares Outstanding", 2941.6, "shares", format="%.1f")
-
-current_share_price = float_input("Current Share Price", 12.7, "price", format="%.2f")
-
-
-
-# 2. Beta (Levered)
-st.sidebar.subheader("2. Beta (Levered)")
+RFR = pct_input("Risk Free Rate (RFR)", 0.0445, "rfr")
 
 beta_source = st.sidebar.radio(
     "Seleccionar origen de Beta",
@@ -641,7 +637,13 @@ else:
 
     crp_val = 0.0
 
-st.sidebar.subheader("5. R&D Expenses")
+st.sidebar.subheader("5. Market & Shares")
+
+shares_outstanding = float_input("Shares Outstanding", 2941.6, "shares", format="%.1f")
+
+current_share_price = float_input("Current Share Price", 12.7, "price", format="%.2f")
+
+st.sidebar.subheader("6. R&D Expenses")
 
 base_r_d_expenses = float_input("Current Year R&D", 5392, "rd_curr")
 
@@ -651,7 +653,7 @@ minus_twoyear_r_d_expense = float_input("R&D (T-2)", 5122, "rd_m2")
 
 minus_threeyear_r_d_expense = float_input("R&D (T-3)", 4336, "rd_m3")
 
-st.sidebar.subheader("6. Debt & Options")
+st.sidebar.subheader("7. Debt & Options")
 
 av_maturity_of_debt = float_input("Average Maturity of Debt (Years)", 5, "mat_debt", format="%.1f")
 
@@ -707,6 +709,8 @@ inputs = {
     'marginal_tax_rate': marginal_tax_rate,
 
     'RFR': RFR,
+
+    'g': g,
 
     'terminal_operating_margin': terminal_operating_margin,
 
@@ -870,82 +874,89 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
         st.header(f"Valuation Summary: {company_name}")
 
-        st.write(f"Date: {valuation_date.strftime('%Y-%m-%d')}")
+        st.caption(f"📅 Fecha de Valoración: {valuation_date.strftime('%Y-%m-%d')}")
+
+        # ── 1. Resumen Principal de Valoración ──────────────────────────────
+        st.subheader("🎯 Resumen de Valoración por Acción")
+        curr_price = float(inputs.get('current_share_price', 0.0))
+        fair_value = float(results['value_per_share'])
+
+        delta_str = None
+        if curr_price > 0:
+            diff_pct = (fair_value - curr_price) / curr_price
+            delta_str = f"{diff_pct:+.2%} vs actual (${curr_price:,.2f})"
 
         col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Valor Estimado / Acción", f"${fair_value:,.2f}", delta=delta_str)
+        col2.metric("Precio Actual de Mercado", f"${curr_price:,.2f}")
+        col3.metric("Valor de la Firma (EV)", f"${results['firm_value']:,.0f}")
+        col4.metric("Valor Total del Equity", f"${results['value_of_equity']:,.0f}")
 
-        col1.metric("Value per Share", f"${results['value_per_share']:,.2f}")
+        st.markdown("---")
 
-        col2.metric("Firm Value", f"${results['firm_value']:,.0f}")
+        # ── 2. Año Terminal y Crecimiento Perpetuo (g) ─────────────────────
+        st.subheader("🌐 Año Terminal y Crecimiento Perpetuo (g)")
+        term_g = float(results.get('g', inputs.get('g', 0.03)))
+        term_wacc = float(results.get('terminal_wacc', results['WACC']))
+        term_val = float(results['terminal_value'])
+        pv_term_val = float(results['pv_terminal_value'])
+        firm_val = float(results['firm_value'])
+        pv_term_weight = (pv_term_val / firm_val * 100) if firm_val > 0 else 0.0
 
-        col3.metric("Terminal Value", f"${results['terminal_value']:,.0f}")
+        t1, t2, t3, t4 = st.columns(4)
+        t1.metric("Crecimiento Terminal (g)", f"{term_g:.2%}")
+        t2.metric("Terminal WACC", f"{term_wacc:.2%}")
+        t3.metric("Terminal Value (Nominal)", f"${term_val:,.0f}")
+        t4.metric("PV Terminal Value", f"${pv_term_val:,.0f}", f"{pv_term_weight:.1f}% del EV")
 
-        col4.metric("Market Value of Debt", f"${results['market_value_of_debt']:,.0f}")
+        st.markdown("---")
 
-        st.subheader("Cost of Capital (WACC)")
-
+        # ── 3. Estructura y Costo de Capital ───────────────────────────────
+        st.subheader("⚡ Estructura y Costo de Capital (WACC)")
         c1, c2, c3, c4 = st.columns(4)
+        c1.metric("WACC Actual", f"{results['WACC']:.2%}")
+        c2.metric("Costo del Equity (Ke)", f"{results['cost_of_equity']:.2%}")
+        c3.metric("Costo de Deuda (Kd After-Tax)", f"{results['cost_of_debt']:.2%}")
+        c4.metric("Levered Beta (β)", f"{results['levered_beta']:.4f}")
 
-        c1.metric("WACC", f"{results['WACC']*100:.2f}%")
+        st.markdown("---")
 
-        c2.metric("Cost of Equity", f"{results['cost_of_equity']*100:.2f}%")
+        # ── 4. Retornos y Balances ─────────────────────────────────────────
+        st.subheader("📊 Capital Invertido y Flujos de Caja")
+        b1, b2, b3, b4 = st.columns(4)
+        b1.metric("Capital Invertido (Ajustado)", f"${results['invested_capital_adj']:,.0f}")
+        b2.metric("Suma VP Flujos (Años 1-10)", f"${results['sum_vp_FCFF']:,.0f}")
+        b3.metric("Valor Mercado de Deuda", f"${results['market_value_of_debt']:,.0f}")
+        b4.metric("Efectivo Año Base", f"${inputs['cash_base_year']:,.0f}")
 
-        c3.metric("Cost of Debt (After Tax)", f"{results['cost_of_debt']*100:.2f}%")
+        st.markdown("---")
 
-        c4.metric("levered Beta", f"{results['levered_beta']:.4f}")
-
-        st.subheader("Capital Returns")
-
-        c5, c6, c7, c8 = st.columns(4)
-
-        c5.metric("Invested Capital (Adj)", f"${results['invested_capital_adj']:,.0f}")
-
-        c6.metric("Sum of PV(FCFF)", f"${results['sum_vp_FCFF']:,.0f}")
-
+        # ── 5. Gráfico de Proyección ───────────────────────────────────────
         import altair as alt
-
-        st.subheader("Revenue & Free Cash Flow to Firm")
+        st.subheader("📈 Proyección: Ingresos vs Flujo de Caja Libre (FCFF)")
 
         chart_data = df.iloc[2:12][['Periodo', 'Ingresos', 'FCFF']].copy()
-
         chart_data['Year'] = range(1, 11)
 
-        # Melt data for Altair plotting without mixing string columns
+        melted_data = chart_data.melt(id_vars='Year', value_vars=['Ingresos', 'FCFF'], var_name='Métrica', value_name='Valor')
 
-        melted_data = chart_data.melt(id_vars='Year', value_vars=['Ingresos', 'FCFF'], var_name='Metric', value_name='Value')
-
-        # Explicitly configure Altair to render the 1-10 string ticks on the X-axis
-
-        base_chart = alt.Chart(melted_data).mark_line().encode(
-
-            x=alt.X('Year:Q', scale=alt.Scale(domain=[1, 10]), axis=alt.Axis(values=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], labelAngle=0, format="d")),
-
-            y=alt.Y('Value:Q', title="Amount ($)"),
-
-            color='Metric:N'
-
+        base_chart = alt.Chart(melted_data).mark_line(point=True).encode(
+            x=alt.X('Year:Q', scale=alt.Scale(domain=[1, 10]), axis=alt.Axis(values=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], labelAngle=0, format="d", title="Año de Proyección")),
+            y=alt.Y('Valor:Q', title="Monto ($)"),
+            color=alt.Color('Métrica:N', legend=alt.Legend(title="Métrica"))
         ).properties(height=400)
 
-        st.altair_chart(base_chart)
+        st.altair_chart(base_chart, use_container_width=True)
 
         try:
-
             excel_data = to_excel(df, results, inputs, company_name, valuation_date)
-
             st.download_button(
-
-            label="Download Valuation to Excel",
-
-            data=excel_data,
-
-            file_name=f"Valuation_{company_name}.xlsx",
-
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-        )
-
+                label="📥 Descargar Modelo Completo en Excel",
+                data=excel_data,
+                file_name=f"Valuation_{company_name}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
         except Exception as e:
-
             st.error(f"Error generating Excel file. Details: {e}")
 
     with tab2:
@@ -1000,7 +1011,7 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
         2\\. **WACC**: Variación de la tasa de descuento utilizada para traer los flujos a valor presente.
 
-        3\\. **Crecimiento a Perpetuidad (Terminal Growth)**: Variación alrededor de la Risk Free Rate.
+        3\\. **Crecimiento a Perpetuidad (Terminal Growth - g)**: Variación normal alrededor de la tasa de crecimiento terminal (g).
 
         Estas combinaciones determinan distintas proyecciones de inversión y crecimiento, devolviendo un conjunto estadístico del 'Value per share'. Múltiples iteraciones filtran combinaciones no lógicas (e.g. WACC < Crecimiento).
 
@@ -1126,7 +1137,7 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
             {"Paso": "Terminal WACC", "Fórmula": "Costo de capital del año terminal", "Valor": f"{results['terminal_wacc']:.2%}"},
 
-            {"Paso": "Terminal value", "Fórmula": "Terminal CF / (Terminal WACC - RFR)", "Valor": f"${results['terminal_value']:,.0f}"},
+            {"Paso": "Terminal value", "Fórmula": "Terminal CF / (Terminal WACC - g)", "Valor": f"${results['terminal_value']:,.0f}"},
 
             {"Paso": "Present Value of Terminal value", "Fórmula": "Terminal Value / (1+WACC)^10", "Valor": f"${results['pv_terminal_value']:,.0f}"},
 

@@ -85,13 +85,14 @@ def calculate_valuation(inputs):
         tasa_crecimiento = agr_rate_list[i]
         ingresos.append(ingresos[-1] * (1 + tasa_crecimiento))
         
-    ingreso_term_year = ingresos[-1] * (1 + inputs['RFR'])
+    g = float(inputs.get('g', 0.03))
+    ingreso_term_year = ingresos[-1] * (1 + g)
     ingresos.append(ingreso_term_year)
         
     df = pd.DataFrame({"Periodo": labels, "Ingresos": ingresos})
     
     # Anual_growth_rate
-    agr_visual = [0, 0] + agr_rate_list + [inputs['RFR']]
+    agr_visual = [0, 0] + agr_rate_list + [g]
     df["Anual_growth_rate"] = agr_visual
     
     # Margins & EBIT (Operating_income)
@@ -153,7 +154,7 @@ def calculate_valuation(inputs):
         terminal_reinvestment = delta_sales_term / term_stcr_val if term_stcr_val != 0 else 0
         sales_to_capital[12] = term_stcr_val
     else:
-        frat = inputs['RFR'] / roic_10 if roic_10 != 0 else 0
+        frat = g / roic_10 if roic_10 != 0 else 0
         terminal_reinvestment = frat * ebit_less_taxes[12]
         delta_sales_term = ingresos[12] - ingresos[11]
         if terminal_reinvestment != 0:
@@ -203,7 +204,7 @@ def calculate_valuation(inputs):
     wacc_col = [wacc, wacc] + [wacc] * 10 + [term_wacc]
     df["WACC"] = wacc_col
     
-    term_discount = term_wacc - inputs['RFR']
+    term_discount = term_wacc - g
     if term_discount <= 0.0001:
         term_discount = 0.0001
         
@@ -258,6 +259,7 @@ def calculate_valuation(inputs):
     results = {
         'WACC': wacc,
         'terminal_wacc': term_wacc,
+        'g': g,
         'terminal_stcr': sales_to_capital[12],
         'terminal_reinvestment': terminal_reinvestment,
         'terminal_value': terminal_value,
@@ -336,7 +338,8 @@ def run_montecarlo_sim(inputs, wacc_base, n_simulaciones=5000, margen_ebit_std=0
     # Distributions
     margin_shock = np.random.normal(0, margen_ebit_std, n_simulaciones)
     wacc_sim = np.random.normal(wacc_base, wacc_sim_std, n_simulaciones)
-    crecimiento_perpetuo = np.random.normal(inputs['RFR'], term_growth_std, n_simulaciones)
+    g_base = float(inputs.get('g', 0.03))
+    crecimiento_perpetuo = np.random.normal(g_base, term_growth_std, n_simulaciones)
     
     valores_por_accion = []
     
