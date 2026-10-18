@@ -189,8 +189,11 @@ def calculate_valuation(inputs):
             
     df["Inv_Capital"] = cumulated_inv_cap
     
-    # ROIC calculation for each year
-    roic = [roic_base, roic_adj] + [ebit_less_taxes[i] / cumulated_inv_cap[i-1] for i in range(2, 13)]
+    # ROIC calculation for each year (Ebit(1-t) / Inv_Capital del mismo año para toda la columna)
+    roic = [
+        (ebit_less_taxes[i] / cumulated_inv_cap[i]) if cumulated_inv_cap[i] != 0 else 0 
+        for i in range(13)
+    ]
     df["ROIC"] = roic
     
     sum_vp_FCFF = sum(pv_FCFF[2:12]) # Only sum years 1 to 10
