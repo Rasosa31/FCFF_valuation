@@ -114,35 +114,45 @@ def run_auto_valuation(ticker_symbol, target_currency=None, company_name=None):
     matched_ind    = damodaran_data.get('matched_industry', industry)
     stcr_damo      = damodaran_data.get('sales_to_capital') or ""
 
-    # C. Beta — outlier detection ─────────────────────────────────────────────
+    # C. Country & Statutory Tax Rate (necesario para apalancamiento) ─────────
+    country = raw_data.get('country', 'Unknown')
+    statutory_tax = 0.25 if country == 'United States' else 0.21
+
+    # D. Beta — Damodaran Unlevered (Cash-Corrected) + Relevering (Hamada) ─────
     raw_beta = float(raw_data.get('beta') or 1.0)
-    sector_beta = None  # will be filled from Damodaran if available
+    yahoo_beta = raw_beta  # Se conserva como dato informativo para el informe
 
-    # Try to get sector beta from Damodaran unlevered beta table (optional enrichment)
-    try:
-        from damodaran_service import get_damodaran_metrics as _dm
-        # Damodaran beta is not directly in mgnroc.xls, so we just note the raw_beta.
-        # If available in future services, assign it here.
-        pass
-    except Exception:
-        pass
+    from damodaran_service import get_damodaran_unlevered_beta, calculate_levered_beta
+    beta_damo_info = get_damodaran_unlevered_beta(matched_ind or industry)
+    unlevered_beta_corrected = beta_damo_info['unlevered_beta_corrected']
+    matched_beta_ind = beta_damo_info['matched_industry'] or matched_ind or industry
+    beta_source_col = beta_damo_info.get('source_column', 'Average (2022-2026)')
 
-    beta_outlier = raw_beta < BETA_LOW_THRESHOLD or raw_beta > BETA_HIGH_THRESHOLD
-    if beta_outlier:
-        # Use sector beta fallback from Damodaran unlevered file if possible; else 1.0
-        sector_beta = sector_beta if sector_beta else 1.0
-        levered_beta = sector_beta
-        print(f"   ⚠️ Beta de la compañía ({raw_beta:.2f}) fuera de rango [0.5, 2.0]. "
-              f"Usando beta sectorial: {levered_beta:.4f}")
-        beta_used_note = (
-            f"Beta de la compañía ({raw_beta:.2f}) fuera del rango razonable [0.5–2.0]. "
-            f"Se sustituyó por el beta sectorial de referencia: **{levered_beta:.4f}**."
-        )
-    else:
-        levered_beta = raw_beta
-        beta_used_note = f"Beta de la compañía utilizado directamente desde Yahoo Finance: **{levered_beta:.4f}**."
+    gross_debt = max(0.0, float(raw_data.get('debt_base_year', 0.0)))
+    market_cap = float(raw_data.get('current_share_price', 0.0)) * float(raw_data.get('shares_outstanding', 0.0))
+    de_ratio = (gross_debt / market_cap) if market_cap > 0 else 0.0
 
-    # D. Interest expense fallback ─────────────────────────────────────────────
+    levered_beta = calculate_levered_beta(
+        unlevered_beta_corrected=unlevered_beta_corrected,
+        marginal_tax_rate=statutory_tax,
+        debt=gross_debt,
+        market_cap=market_cap,
+    )
+
+    print(f"   -> Beta Damodaran Unlevered (Cash-Corrected): {unlevered_beta_corrected:.4f} (Sector: {matched_beta_ind}, Col P: {beta_source_col})")
+    print(f"   -> Estructura Capital: Deuda D=${gross_debt:,.1f}M | MCap=${market_cap:,.1f}M | D/MCap={de_ratio:.2%} | T={statutory_tax:.2%}")
+    print(f"   -> Beta Levered Calculada para el Motor (Beta_L): {levered_beta:.4f}")
+    print(f"   -> Beta de Yahoo Finance (Informativa): {yahoo_beta:.4f}")
+
+    beta_used_note = (
+        f"Beta apalancada calculada ({levered_beta:.4f}) a partir de la Unlevered Beta corregida por caja "
+        f"de Damodaran ({unlevered_beta_corrected:.4f}, sector '{matched_beta_ind}', betas.xls Columna P "
+        f"'{beta_source_col}'), apalancada con la estructura de capital de la empresa "
+        f"[D/MCap: {de_ratio:.2%}, Tasa Impositiva: {statutory_tax:.2%}]. "
+        f"La Beta de Yahoo Finance ({yahoo_beta:.4f}) se conserva como referencia informativa."
+    )
+
+    # E. Interest expense fallback ─────────────────────────────────────────────
     interest_expense = raw_data.get('interes_expenses', 0.0)
     interest_expense_source = "Yahoo Finance"
     interest_expense_note = ""
@@ -207,11 +217,14 @@ def run_auto_valuation(ticker_symbol, target_currency=None, company_name=None):
         long_name=long_name,
         business_summary=raw_data.get('business_summary', ''),
         sector=raw_data.get('sector', ''),
-        country=raw_data.get('country', ''),
+        country=country,
         revenue_history=revenue_history,
         margin_history=margin_history,
-        beta=raw_beta,
-        sector_beta=sector_beta,
+        beta=yahoo_beta,
+        sector_beta=unlevered_beta_corrected,
+        unlevered_beta=unlevered_beta_corrected,
+        levered_beta=levered_beta,
+        de_ratio=de_ratio,
         interest_expense=interest_expense,
         interest_expense_source=interest_expense_source,
         valuation_date=today_str,
@@ -279,10 +292,6 @@ Los datos históricos reflejan la presión de inversiones recientes y gastos de 
         print(f"   -> Margen Operativo (Turnaround Dinámico): Y1={opm_list[0]:.1%} -> Y10={opm_list[-1]:.1%}")
 
 
-    # H. Statutory Tax Rate ────────────────────────────────────────────────────
-    country = raw_data.get('country', 'Unknown')
-    statutory_tax = 0.25 if country == 'United States' else 0.21
-
     # I. Sales to Capital Ratio convergence ───────────────────────────────────
     stcr_list = [""] * 10
     if stcr_damo:
@@ -331,6 +340,8 @@ Los datos históricos reflejan la presión de inversiones recientes y gastos de 
         'terminal_reinvestment_method': "Terminal ROIC (Damodaran Base)",
         'terminal_stcr_input':      "",
         'levered_beta':             levered_beta,
+        'unlevered_beta_corrected': unlevered_beta_corrected,
+        'yahoo_beta':               yahoo_beta,
         'ERP':                      damodaran_erp,
         'shares_outstanding':       raw_data['shares_outstanding'],
         'current_share_price':      raw_data['current_share_price'],
@@ -389,8 +400,15 @@ Los datos históricos reflejan la presión de inversiones recientes y gastos de 
         "terminal_wacc_input":  "",
         "shares":               inputs['shares_outstanding'],
         "price":                inputs['current_share_price'],
-        "beta_calc_method":     "Beta Levered",
+        "beta_source":          "Beta Damodaran (Unlevered Cash-Corrected apalancada por D/MCap)",
+        "beta_calc_method":     "Beta Damodaran (Relevered)",
+        "selected_damo_ind":    matched_beta_ind,
+        "matched_beta_ind":     matched_beta_ind,
+        "_applied_matched_ind": matched_beta_ind,
+        "_last_selected_ind":   matched_beta_ind,
+        "unlevered_beta_corrected": unlevered_beta_corrected,
         "levered_beta":         levered_beta,
+        "yahoo_beta":           yahoo_beta,
         "erp_calc_method":      "ERP Único",
         "erp":                  damodaran_erp,
         "rd_curr":              inputs['base_r_d_expenses'],
@@ -507,10 +525,26 @@ Los datos históricos reflejan la presión de inversiones recientes y gastos de 
 
 ---
 
-## 5. Beta
+## 5. Beta y Estructura de Capital (Metodología Aswath Damodaran)
 
-- **Beta compañía (Yahoo Finance):** {raw_beta:.4f}
-- **¿Outlier?** {"✅ Sí — fuera del rango [0.5, 2.0]" if beta_outlier else "❌ No — dentro del rango aceptable"}
+- **Beta de mercado de la compañía (Yahoo Finance):** {yahoo_beta:.4f} *(Dato informativo únicamente)*
+- **Fuente de Beta para el Motor:** NYU Stern - Aswath Damodaran (`betas.xls`, USA).
+- **Hoja:** `Industry Averages` | **Columna P:** `{beta_source_col}` (Unlevered beta corrected for cash - Over time)
+- **Sector Damodaran asignado:** `{matched_beta_ind}`
+- **Beta desapalancada corregida por caja ($\beta_{{U,\text{{corrected}}}}$):** **{unlevered_beta_corrected:.4f}**
+
+### Proceso de Apalancamiento Financiero (Hamada / Damodaran):
+- **Deuda Financiera Bruta ($D$):** ${gross_debt:,.2f}M
+- **Capitalización de Mercado ($MCap$ = Precio × Acciones):** ${market_cap:,.2f}M
+- **Ratio Deuda / Equity ($D / MCap$):** {de_ratio:.2%}
+- **Tasa Marginal de Impuesto ($T$):** {statutory_tax:.2%}
+
+**Fórmula aplicada:**
+$$\\beta_L = \\beta_{{U,\\text{{corrected}}}} \\times \\left[1 + (1 - T) \\times \\frac{{D}}{{MCap}}\\right]$$
+
+$$\\beta_L = {unlevered_beta_corrected:.4f} \\times \\left[1 + (1 - {statutory_tax:.4f}) \\times \\frac{{{gross_debt:,.2f}}}{{{market_cap:,.2f}}}\\right] = \\mathbf{{{levered_beta:.4f}}}$$
+
+- **Beta Apalancada resultante ($\beta_L$) utilizada en el cálculo del WACC:** **`{levered_beta:.4f}`**
 - {llm_beta_note}
 
 ---

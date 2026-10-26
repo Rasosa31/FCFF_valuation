@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import os
+import io
 
 
 def get_damodaran_erp():
@@ -24,6 +25,150 @@ def get_damodaran_erp():
         print(f"Error scraping ERP: {e}")
 
     return 0.0460  # Default fallback
+
+
+def load_damodaran_betas_df(force_download=False):
+    """
+    Carga el archivo betas.xls de Aswath Damodaran (USA).
+    Hoja: 'Industry Averages', saltando las primeras 9 filas (skiprows=9).
+    Si existe localmente 'betas.xls', lo usa como caché; de lo contrario, lo descarga
+    desde NYU Stern (https://pages.stern.nyu.edu/~adamodar/pc/datasets/betas.xls).
+    """
+    local_dir = os.path.dirname(os.path.abspath(__file__))
+    local_path = os.path.join(local_dir, "betas.xls")
+    url = "https://pages.stern.nyu.edu/~adamodar/pc/datasets/betas.xls"
+
+    df = None
+    if not force_download and os.path.exists(local_path):
+        try:
+            df = pd.read_excel(local_path, sheet_name="Industry Averages", skiprows=9)
+        except Exception as e:
+            print(f"   ⚠️ Error leyendo betas.xls local: {e}. Reintentando descarga web...")
+            df = None
+
+    if df is None:
+        try:
+            print("   -> Contactando NYU Stern (Damodaran betas.xls)...")
+            resp = requests.get(url, timeout=15)
+            if resp.status_code == 200:
+                with open(local_path, "wb") as f:
+                    f.write(resp.content)
+                df = pd.read_excel(io.BytesIO(resp.content), sheet_name="Industry Averages", skiprows=9)
+                print("   ✅ betas.xls descargado y guardado en caché local.")
+        except Exception as e:
+            print(f"Error descargando Damodaran betas.xls: {e}")
+            if os.path.exists(local_path):
+                df = pd.read_excel(local_path, sheet_name="Industry Averages", skiprows=9)
+
+    return df
+
+
+def get_damodaran_unlevered_beta(query_industry):
+    """
+    Obtiene la 'Unlevered beta corrected for cash' del sector de la compañía desde
+    la base de datos de Aswath Damodaran (archivo betas.xls, hoja 'Industry Averages',
+    columna P: 'Average (2022-2026)').
+    """
+    metrics = {
+        'unlevered_beta_corrected': 1.0,
+        'matched_industry': None,
+        'source_column': 'Average (2022-2026)',
+        'source_file': 'betas.xls'
+    }
+
+    if not query_industry:
+        return metrics
+
+    try:
+        df = load_damodaran_betas_df()
+        if df is None or df.empty:
+            print("   ⚠️ No se pudo cargar el dataset betas.xls de Damodaran.")
+            return metrics
+
+        ind_col = df.columns[0]
+        industries = df[ind_col].dropna().astype(str).tolist()
+
+        # Identificar la columna P (Average 2022-2026)
+        target_col = None
+        for col in df.columns:
+            c_str = str(col).lower()
+            if "average" in c_str and "2022" in c_str:
+                target_col = col
+                break
+        if target_col is None:
+            # Columna P corresponde al índice 15 (columna 16 en Excel)
+            target_col = df.columns[15] if len(df.columns) > 15 else df.columns[-1]
+
+        # Match exacto (case-insensitive)
+        exact = [ind for ind in industries if ind.lower() == str(query_industry).lower()]
+        if exact:
+            matched_ind = exact[0]
+        else:
+            # Fuzzy match
+            matches = difflib.get_close_matches(str(query_industry), industries, n=1, cutoff=0.55)
+            matched_ind = matches[0] if matches else None
+
+        if matched_ind:
+            row = df[df[ind_col] == matched_ind]
+            if not row.empty:
+                val = row[target_col].values[0]
+                try:
+                    u_beta = float(val)
+                    metrics['unlevered_beta_corrected'] = u_beta
+                    metrics['matched_industry'] = matched_ind
+                    metrics['source_column'] = str(target_col)
+                    print(
+                        f"   -> Damodaran Unlevered Beta (Cash-Corrected): "
+                        f"'{query_industry}' -> '{matched_ind}' = {u_beta:.4f} (Col P: {target_col})"
+                    )
+                except (ValueError, TypeError) as e:
+                    print(f"   ⚠️ Valor no numérico en columna P para '{matched_ind}': {val}")
+        else:
+            print(f"   ⚠️ No se encontró match en betas.xls para industria: '{query_industry}'")
+
+    except Exception as e:
+        print(f"Error obteniendo Damodaran Unlevered Beta: {e}")
+
+    return metrics
+
+
+def calculate_levered_beta(unlevered_beta_corrected, marginal_tax_rate, debt, market_cap):
+    """
+    Apalanca la 'Unlevered beta corrected for cash' con base en la estructura de capital
+    de la empresa a valorar usando la fórmula de Hamada / Damodaran:
+
+        Beta_L = beta_U,corrected * [1 + (1 - T) * (D / MCap)]
+
+    Parámetros:
+    - beta_U,corrected: Beta desapalancado corregido por caja (Unlevered Beta corrected for cash)
+    - marginal_tax_rate (T): Tasa marginal de impuesto (decimal, ej. 0.25)
+    - debt (D): Deuda financiera bruta (book value o market value de la deuda)
+    - market_cap (MCap): Capitalización bursátil (Precio de la acción * Número de acciones)
+    """
+    u_beta = float(unlevered_beta_corrected if unlevered_beta_corrected is not None else 1.0)
+    t = float(marginal_tax_rate if marginal_tax_rate is not None else 0.25)
+    d = max(0.0, float(debt if debt is not None else 0.0))
+    mcap = max(0.0, float(market_cap if market_cap is not None else 0.0))
+
+    if mcap > 0:
+        de_ratio = d / mcap
+        levered_beta = u_beta * (1.0 + (1.0 - t) * de_ratio)
+    else:
+        # Si no hay MCap disponible, fallback a beta desapalancada
+        levered_beta = u_beta
+
+    return float(levered_beta)
+
+
+def get_damodaran_beta_industries_list():
+    """Retorna la lista de industrias disponibles en betas.xls."""
+    try:
+        df = load_damodaran_betas_df()
+        if df is not None and not df.empty:
+            return df[df.columns[0]].dropna().astype(str).tolist()
+    except Exception as e:
+        print(f"Error obteniendo lista de industrias de betas.xls: {e}")
+    return []
 
 
 def get_damodaran_metrics(query_industry):

@@ -25,7 +25,10 @@ def get_llm_projections(
     revenue_history: list = None,      # lista de tuplas (año, ingresos_M) más reciente primero
     margin_history: list = None,       # lista de tuplas (año, margen_op) más reciente primero
     beta: float = None,
-    sector_beta: float = None,         # Beta sectorial Damodaran si beta es outlier
+    sector_beta: float = None,         # Beta desapalancada Damodaran
+    unlevered_beta: float = None,      # Unlevered beta corrected for cash Damodaran (Col P betas.xls)
+    levered_beta: float = None,        # Beta apalancada final
+    de_ratio: float = None,            # Ratio D/MCap
     interest_expense: float = None,    # en $M
     interest_expense_source: str = "Yahoo Finance",
     valuation_date: str = None,
@@ -55,16 +58,23 @@ def get_llm_projections(
 
     # ── Formato de beta ───────────────────────────────────────────────────────
     beta_context = ""
-    if beta is not None:
-        if beta < 0.5 or beta > 2.0:
-            beta_context = (
-                f"\n⚠️ NOTA BETA: El beta de mercado reportado ({beta:.2f}) se considera un outlier "
-                f"(fuera del rango 0.5 - 2.0). El Agente sustituirá este valor por el beta sectorial "
-                f"({sector_beta:.4f} asignar beta del sector usando la fuente de Mr Damodaran archivo betas.xls columna C). "
-                f"Explica brevemente esto en el campo 'beta_note'."
-            )
-        else:
-            beta_context = f"\n- Beta Levered de la compañía: {beta:.2f} (dentro del rango aceptable)."
+    u_b = unlevered_beta if unlevered_beta is not None else sector_beta
+    if levered_beta is not None or u_b is not None:
+        u_b_val = u_b if u_b is not None else 1.0
+        l_b_val = levered_beta if levered_beta is not None else u_b_val
+        y_b_str = f"{beta:.2f}" if beta is not None else "N/A"
+        de_str = f"{de_ratio:.2%}" if de_ratio is not None else "N/A"
+        beta_context = (
+            f"\n- Beta informativa de mercado (Yahoo Finance): {y_b_str} (solo informativa, no se usa en el motor)\n"
+            f"- Beta desapalancada corregida por caja (Aswath Damodaran - betas.xls, hoja 'Industry Averages', columna P 'Average (2022-2026)'): {u_b_val:.4f}\n"
+            f"- Ratio de Apalancamiento D/MCap: {de_str}\n"
+            f"- Beta apalancada resultante para la valoración (Beta_L = beta_U,corrected * [1 + (1 - T) * (D / MCap)]): {l_b_val:.4f}\n"
+            f"Explica brevemente en el campo 'beta_note' que la beta del motor de valoración se calcula apalancando "
+            f"la beta desapalancada corregida por caja del sector de Damodaran ({u_b_val:.4f}) según la estructura de capital de la compañía ({l_b_val:.4f}), "
+            f"dejando la beta de Yahoo Finance ({y_b_str}) únicamente como referencia informativa."
+        )
+    elif beta is not None:
+        beta_context = f"\n- Beta de mercado de la compañía: {beta:.2f}."
 
     # ── Formato de series históricas ──────────────────────────────────────────
     rev_hist_str = "No disponible"

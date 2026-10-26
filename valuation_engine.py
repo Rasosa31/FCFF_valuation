@@ -11,9 +11,14 @@ def calculate_valuation(inputs):
     mc = inputs['current_share_price'] * inputs['shares_outstanding']
     
     # Levered Beta
-    # The model receives the company's already-levered beta directly
-    # (e.g. Yahoo Finance). No unlevering/relevering adjustment is applied.
+    # If levered_beta is directly supplied, use it; otherwise compute from Damodaran unlevered beta corrected for cash
     levered_beta = float(inputs.get('levered_beta', 0.0))
+    if levered_beta <= 0.0 and inputs.get('unlevered_beta_corrected') is not None:
+        u_beta = float(inputs['unlevered_beta_corrected'])
+        d = max(0.0, float(inputs.get('debt_base_year', 0.0)))
+        t = float(inputs.get('marginal_tax_rate', 0.25))
+        de_ratio = (d / mc) if mc > 0 else 0.0
+        levered_beta = u_beta * (1.0 + (1.0 - t) * de_ratio)
 
     lam = inputs.get('lambda', 0.0)
     crp = inputs.get('CRP', 0.0)
@@ -279,6 +284,8 @@ def calculate_valuation(inputs):
         'sales_to_capital_ratio_base': sales_to_capital_ratio_base,
         'sales_to_capital_ratio_adj': sales_to_capital_ratio_adj,
         'levered_beta': levered_beta,
+        'unlevered_beta_corrected': float(inputs.get('unlevered_beta_corrected', 0.0)),
+        'yahoo_beta': float(inputs.get('yahoo_beta', 0.0)),
         'cost_of_equity': cost_of_equity,
         'pretax_cost_of_debt': pretax_cost_of_debt,
         'cost_of_debt': cost_of_debt,

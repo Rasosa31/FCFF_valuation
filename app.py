@@ -488,13 +488,88 @@ st.sidebar.subheader("4. Cost of Capital & Equity Risk")
 
 RFR = pct_input("Risk Free Rate (RFR)", 0.0445, "rfr")
 
+from damodaran_service import get_damodaran_unlevered_beta, calculate_levered_beta, get_damodaran_beta_industries_list
+
 beta_source = st.sidebar.radio(
     "Seleccionar origen de Beta",
-    ["Beta de la compañía", "Beta sectorial (ponderada por ingresos)"],
+    [
+        "Beta Damodaran (Unlevered Cash-Corrected apalancada por D/MCap)",
+        "Beta de la compañía (Levered Beta manual)",
+        "Beta sectorial (ponderada por ingresos)",
+    ],
     key="beta_source",
 )
 
-if beta_source == "Beta de la compañía":
+if beta_source == "Beta Damodaran (Unlevered Cash-Corrected apalancada por D/MCap)":
+    damo_ind_list = get_damodaran_beta_industries_list()
+    if not damo_ind_list:
+        damo_ind_list = ["Aerospace/Defense", "Technology", "Software (System & Application)", "Total Market"]
+
+    # Sincronizar automáticamente si el agente o archivo JSON aportó un nuevo sector
+    matched_target = st.session_state.get("matched_beta_ind") or st.session_state.get("matched_industry")
+    if matched_target and matched_target in damo_ind_list:
+        if st.session_state.get("_applied_matched_ind") != matched_target:
+            st.session_state["selected_damo_ind"] = matched_target
+            st.session_state["_applied_matched_ind"] = matched_target
+            st.session_state["_last_selected_ind"] = matched_target
+
+    if "selected_damo_ind" not in st.session_state or st.session_state["selected_damo_ind"] not in damo_ind_list:
+        st.session_state["selected_damo_ind"] = matched_target if (matched_target and matched_target in damo_ind_list) else damo_ind_list[0]
+
+    current_sel = st.session_state["selected_damo_ind"]
+    sel_idx = damo_ind_list.index(current_sel) if current_sel in damo_ind_list else 0
+
+    selected_damo_ind = st.sidebar.selectbox(
+        "Sector Damodaran (betas.xls)",
+        damo_ind_list,
+        index=sel_idx,
+        key="selected_damo_ind"
+    )
+
+    # Si el usuario cambió manualmente el sector en el selectbox, actualizar la beta desapalancada
+    if st.session_state.get("_last_selected_ind") != selected_damo_ind:
+        beta_info = get_damodaran_unlevered_beta(selected_damo_ind)
+        u_beta_val = beta_info.get('unlevered_beta_corrected', 1.0)
+        st.session_state["unlevered_beta_corrected"] = float(u_beta_val)
+        st.session_state["_last_selected_ind"] = selected_damo_ind
+    elif "unlevered_beta_corrected" not in st.session_state:
+        beta_info = get_damodaran_unlevered_beta(selected_damo_ind)
+        st.session_state["unlevered_beta_corrected"] = float(beta_info.get('unlevered_beta_corrected', 1.0))
+        st.session_state["_last_selected_ind"] = selected_damo_ind
+
+    unlevered_beta = float_input(
+        "Beta Desapalancada Corregida por Caja (β_U)",
+        st.session_state["unlevered_beta_corrected"],
+        "unlevered_beta_corrected",
+        format="%.4f",
+    )
+
+    cur_debt = float(st.session_state.get("debt_base", 0.0))
+    cur_price = float(st.session_state.get("price", 12.70))
+    cur_shares = float(st.session_state.get("shares", 2941.6))
+    cur_mcap = cur_price * cur_shares
+    cur_tax = float(st.session_state.get("mar_tax", 0.25))
+    de_ratio = (cur_debt / cur_mcap) if cur_mcap > 0 else 0.0
+
+    levered_beta = calculate_levered_beta(
+        unlevered_beta_corrected=unlevered_beta,
+        marginal_tax_rate=cur_tax,
+        debt=cur_debt,
+        market_cap=cur_mcap,
+    )
+    st.session_state["levered_beta"] = levered_beta
+    st.sidebar.markdown(
+        f"**Apalancamiento de Beta (Hamada):**\n"
+        f"- $D$: `${cur_debt:,.1f}` | $MCap$: `${cur_mcap:,.1f}`\n"
+        f"- $D/MCap$: `{de_ratio:.2%}` | Tax ($T$): `{cur_tax:.2%}`\n"
+        f"- $\\beta_L = \\beta_U \\times [1 + (1 - T) \\times (D/MCap)]$"
+    )
+    st.sidebar.success(f"Levered Beta (β_L): **{levered_beta:.4f}**")
+    if "yahoo_beta" in st.session_state:
+        st.sidebar.caption(f"ℹ️ Beta Yahoo Finance (Informativa): **{st.session_state['yahoo_beta']:.4f}**")
+    edited_beta_df = None
+
+elif beta_source in ["Beta de la compañía", "Beta de la compañía (Levered Beta manual)"]:
     levered_beta = float_input(
         "Beta de la compañía (Levered Beta)",
         1.0,
@@ -721,7 +796,9 @@ inputs = {
     'shares_outstanding': shares_outstanding,
 
     'current_share_price': current_share_price,
-        'levered_beta': levered_beta,
+    'levered_beta': levered_beta,
+    'unlevered_beta_corrected': float(st.session_state.get('unlevered_beta_corrected', 1.0)),
+    'yahoo_beta': float(st.session_state.get('yahoo_beta', 0.0)),
     'ERP': ERP,
 
     'base_r_d_expenses': base_r_d_expenses,
@@ -946,7 +1023,10 @@ if 'df' in st.session_state and 'results' in st.session_state:
             color=alt.Color('Métrica:N', legend=alt.Legend(title="Métrica"))
         ).properties(height=400)
 
-        st.altair_chart(base_chart, use_container_width=True)
+        try:
+            st.altair_chart(base_chart, width="stretch")
+        except TypeError:
+            st.altair_chart(base_chart, use_container_width=True)
 
         try:
             excel_data = to_excel(df, results, inputs, company_name, valuation_date)
@@ -1203,6 +1283,19 @@ if 'df' in st.session_state and 'results' in st.session_state:
                 f"**3. Levered Beta ($\\beta_{{lev}}$):** "
                 f"`{results['levered_beta']:.4f}`"
             )
+
+            if results.get('unlevered_beta_corrected', 0.0) > 0:
+                u_b_disp = results['unlevered_beta_corrected']
+                d_disp = inputs.get('debt_base_year', 0.0)
+                mc_disp = results.get('market_cap', 0.0)
+                t_disp = inputs.get('marginal_tax_rate', 0.25)
+                st.markdown(
+                    f"   - $\\beta_{{U,\\text{{corrected}}}}$ (Damodaran betas.xls Col P): `{u_b_disp:.4f}`\n"
+                    f"   - $\\text{{Fórmula Hamada: }} \\beta_L = \\beta_U \\times [1 + (1 - T) \\times (D / MCap)]$\n"
+                    f"   - $D=\\${d_disp:,.1f}M \\mid MCap=\\${mc_disp:,.1f}M \\mid T={t_disp:.1%}$"
+                )
+            if results.get('yahoo_beta', 0.0) > 0:
+                st.caption(f"ℹ️ Beta Yahoo Finance (Informativa): `{results['yahoo_beta']:.4f}`")
 
             if has_country_risk:
                 st.markdown(f"**4. λ (Exposición al Riesgo País):** `{lam_r:.4f}`")
