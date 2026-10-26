@@ -123,7 +123,7 @@ def run_auto_valuation(ticker_symbol, target_currency=None, company_name=None):
     yahoo_beta = raw_beta  # Se conserva como dato informativo para el informe
 
     from damodaran_service import get_damodaran_unlevered_beta, calculate_levered_beta
-    beta_damo_info = get_damodaran_unlevered_beta(matched_ind or industry)
+    beta_damo_info = get_damodaran_unlevered_beta(matched_ind or industry, verbose=True)
     unlevered_beta_corrected = beta_damo_info['unlevered_beta_corrected']
     matched_beta_ind = beta_damo_info['matched_industry'] or matched_ind or industry
     beta_source_col = beta_damo_info.get('source_column', 'Average (2022-2026)')

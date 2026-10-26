@@ -188,7 +188,7 @@ if st.sidebar.button("Clear Data (Reset to 0)"):
 
         lower_key = str(key).lower()
 
-        if any(skip in lower_key for skip in ["date", "company", "method", "opt_", "proj_type"]):
+        if any(skip in lower_key for skip in ["date", "company", "method", "opt_", "proj_type", "beta_source", "damo_ind"]):
 
             continue
 
@@ -513,16 +513,13 @@ if beta_source == "Beta Damodaran (Unlevered Cash-Corrected apalancada por D/MCa
             st.session_state["_applied_matched_ind"] = matched_target
             st.session_state["_last_selected_ind"] = matched_target
 
+    default_fallback = "Total Market" if "Total Market" in damo_ind_list else damo_ind_list[0]
     if "selected_damo_ind" not in st.session_state or st.session_state["selected_damo_ind"] not in damo_ind_list:
-        st.session_state["selected_damo_ind"] = matched_target if (matched_target and matched_target in damo_ind_list) else damo_ind_list[0]
-
-    current_sel = st.session_state["selected_damo_ind"]
-    sel_idx = damo_ind_list.index(current_sel) if current_sel in damo_ind_list else 0
+        st.session_state["selected_damo_ind"] = matched_target if (matched_target and matched_target in damo_ind_list) else default_fallback
 
     selected_damo_ind = st.sidebar.selectbox(
         "Sector Damodaran (betas.xls)",
         damo_ind_list,
-        index=sel_idx,
         key="selected_damo_ind"
     )
 

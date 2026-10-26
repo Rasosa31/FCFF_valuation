@@ -63,7 +63,7 @@ def load_damodaran_betas_df(force_download=False):
     return df
 
 
-def get_damodaran_unlevered_beta(query_industry):
+def get_damodaran_unlevered_beta(query_industry, verbose=False):
     """
     Obtiene la 'Unlevered beta corrected for cash' del sector de la compañía desde
     la base de datos de Aswath Damodaran (archivo betas.xls, hoja 'Industry Averages',
@@ -82,7 +82,8 @@ def get_damodaran_unlevered_beta(query_industry):
     try:
         df = load_damodaran_betas_df()
         if df is None or df.empty:
-            print("   ⚠️ No se pudo cargar el dataset betas.xls de Damodaran.")
+            if verbose:
+                print("   ⚠️ No se pudo cargar el dataset betas.xls de Damodaran.")
             return metrics
 
         ind_col = df.columns[0]
@@ -117,17 +118,21 @@ def get_damodaran_unlevered_beta(query_industry):
                     metrics['unlevered_beta_corrected'] = u_beta
                     metrics['matched_industry'] = matched_ind
                     metrics['source_column'] = str(target_col)
-                    print(
-                        f"   -> Damodaran Unlevered Beta (Cash-Corrected): "
-                        f"'{query_industry}' -> '{matched_ind}' = {u_beta:.4f} (Col P: {target_col})"
-                    )
+                    if verbose:
+                        print(
+                            f"   -> Damodaran Unlevered Beta (Cash-Corrected): "
+                            f"'{query_industry}' -> '{matched_ind}' = {u_beta:.4f} (Col P: {target_col})"
+                        )
                 except (ValueError, TypeError) as e:
-                    print(f"   ⚠️ Valor no numérico en columna P para '{matched_ind}': {val}")
+                    if verbose:
+                        print(f"   ⚠️ Valor no numérico en columna P para '{matched_ind}': {val}")
         else:
-            print(f"   ⚠️ No se encontró match en betas.xls para industria: '{query_industry}'")
+            if verbose:
+                print(f"   ⚠️ No se encontró match en betas.xls para industria: '{query_industry}'")
 
     except Exception as e:
-        print(f"Error obteniendo Damodaran Unlevered Beta: {e}")
+        if verbose:
+            print(f"Error obteniendo Damodaran Unlevered Beta: {e}")
 
     return metrics
 
