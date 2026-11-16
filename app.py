@@ -60,7 +60,7 @@ def to_excel(df, results, inputs, company_name, valuation_date):
 
             {"Paso": "PV (CF over next 10 years)", "Fórmula": "Suma del PV de FCFF Años 1-10", "Valor": round(results['pv_cf_1_10'], 2)},
 
-            {"Paso": "Value of operating assets", "Fórmula": "PV Terminal + PV (CF 1-10)", "Valor": round(results['value_of_operating_assets'], 2)},
+            {"Paso": "Value of operating assets (Enterprise Value)", "Fórmula": "PV Terminal + PV (CF 1-10)", "Valor": round(results['value_of_operating_assets'], 2)},
 
             {"Paso": "Cash", "Fórmula": "+ Efectivo Año Base", "Valor": round(inputs['cash_base_year'], 2)},
 
@@ -960,11 +960,12 @@ if 'df' in st.session_state and 'results' in st.session_state:
             diff_pct = (fair_value - curr_price) / curr_price
             delta_str = f"{diff_pct:+.2%} vs actual (${curr_price:,.2f})"
 
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric("Valor Estimado / Acción", f"${fair_value:,.2f}", delta=delta_str)
         col2.metric("Precio Actual de Mercado", f"${curr_price:,.2f}")
-        col3.metric("Valor de la Firma (EV)", f"${results['firm_value']:,.0f}")
-        col4.metric("Valor Total del Equity", f"${results['value_of_equity']:,.0f}")
+        col3.metric("Enterprise Value (EV)", f"${results['value_of_operating_assets']:,.0f}")
+        col4.metric("Valor de la Firma", f"${results['firm_value']:,.0f}")
+        col5.metric("Valor Total del Equity", f"${results['value_of_equity']:,.0f}")
 
         st.markdown("---")
 
@@ -974,8 +975,8 @@ if 'df' in st.session_state and 'results' in st.session_state:
         term_wacc = float(results.get('terminal_wacc', results['WACC']))
         term_val = float(results['terminal_value'])
         pv_term_val = float(results['pv_terminal_value'])
-        firm_val = float(results['firm_value'])
-        pv_term_weight = (pv_term_val / firm_val * 100) if firm_val > 0 else 0.0
+        ev_val = float(results.get('value_of_operating_assets', results['firm_value']))
+        pv_term_weight = (pv_term_val / ev_val * 100) if ev_val > 0 else 0.0
 
         t1, t2, t3, t4 = st.columns(4)
         t1.metric("Crecimiento Terminal (g)", f"{term_g:.2%}")
@@ -1220,7 +1221,7 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
             {"Paso": "PV (CF over next 10 years)", "Fórmula": "Suma del PV de FCFF Años 1-10", "Valor": f"${results['pv_cf_1_10']:,.0f}"},
 
-            {"Paso": "Value of operating assets", "Fórmula": "PV Terminal + PV (CF 1-10)", "Valor": f"${results['value_of_operating_assets']:,.0f}"},
+            {"Paso": "Value of operating assets (Enterprise Value)", "Fórmula": "PV Terminal + PV (CF 1-10)", "Valor": f"${results['value_of_operating_assets']:,.0f}"},
 
             {"Paso": "Cash", "Fórmula": "+ Efectivo Año Base", "Valor": f"${inputs['cash_base_year']:,.0f}"},
 

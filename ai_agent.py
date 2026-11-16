@@ -570,6 +570,7 @@ $$\\beta_L = {unlevered_beta_corrected:.4f} \\times \\left[1 + (1 - {statutory_t
 |---|---|
 | Precio Actual de Mercado | ${raw_data['current_share_price']:,.2f} |
 | **Valor Estimado por Acción (FCFF)** | **${results['value_per_share']:,.2f}** |
+| Enterprise Value (EV) | ${results['value_of_operating_assets']:,.0f}M |
 | Firm Value | ${results['firm_value']:,.0f}M |
 | Terminal Value | ${results['terminal_value']:,.0f}M |
 | WACC | {results['WACC']:.2%} |

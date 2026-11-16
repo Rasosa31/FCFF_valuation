@@ -260,8 +260,9 @@ def calculate_valuation(inputs):
     # Estimated value / share
     value_per_share = value_in_common_stock / inputs['shares_outstanding'] if inputs['shares_outstanding'] > 0 else 0
     
-    # For backward compatibility with older dictionary keys if needed in other tabs
-    firm_value = value_of_equity + inputs['debt_base_year'] # Firm value is operating + cash + non-ops, or Equity + Debt
+    # Enterprise Value (Operating assets) and Firm Value (Total assets: Operating + Cash + Non-operating)
+    enterprise_value = value_of_operating_assets
+    firm_value = value_of_operating_assets + inputs['cash_base_year'] + inputs['non_operating_assets']
     
     # Dictionary packing all detailed items for the tabs
     results = {
@@ -275,6 +276,7 @@ def calculate_valuation(inputs):
         'pv_cf_1_10': pv_cf_1_10,
         'sum_vp_FCFF': sum_vp_FCFF,
         'value_of_operating_assets': value_of_operating_assets,
+        'enterprise_value': enterprise_value,
         'value_of_equity': value_of_equity,
         'value_in_common_stock': value_in_common_stock,
         'firm_value': firm_value,
