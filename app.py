@@ -373,7 +373,7 @@ equity_base_year = float_input("Equity Base Year (Book Value)", 82324, "eq_base"
 
 debt_base_year = float_input("Debt Base Year", 31454, "debt_base")
 
-interes_expenses = float_input("Interest Expenses", 1258, "int_exp")
+interes_expenses = float_input("Interest Expenses on Debt (Gross, No Net)", 1258, "int_exp")
 
 income_base_year = float_input("Income Base Year (Operating Income)", 17186, "inc_base")
 

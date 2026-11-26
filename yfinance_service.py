@@ -81,9 +81,15 @@ def get_financial_data(ticker_symbol, target_currency=None, max_retries=3):
             # 1. Income Statement Data (desde TTM)
             revenue = get_value(financials, 'Total Revenue', latest_date)
             operating_income = get_value(financials, 'Operating Income', latest_date)
-            interest_expense = get_value(financials, 'Interest Expense', latest_date, default=0.0)
-            # yfinance sometimes records interest expense as negative or positive, ensure positive
-            interest_expense = abs(interest_expense)
+            # Intereses causados/pagados por deuda (interest-bearing debt)
+            # REGLA ESTRICTA: Solo capturar cifras brutas de deuda. PROHIBIDO usar partidas consolidadas con la palabra 'net'.
+            interest_expense = 0.0
+            gross_interest_candidates = ['Interest Expense', 'Interest Expense Non Operating', 'Interest Expense Debt']
+            for cand in gross_interest_candidates:
+                val = get_value(financials, cand, latest_date, default=None)
+                if val is not None and pd.notna(val) and float(val) != 0.0:
+                    interest_expense = abs(float(val))
+                    break
             
             # R&D Expenses del período TTM
             rd_expenses_base = get_value(financials, 'Research And Development', latest_date, default=0.0)

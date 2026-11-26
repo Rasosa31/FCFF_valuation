@@ -43,6 +43,7 @@ La aplicación se compone de una barra lateral (sidebar) con diversas secciones 
 |---------|-----------|-------------|-------------------|
 | **Datos Base** | `Revenue` | Ingresos del año 0 (en la moneda elegida). | 100,000 |
 | | `EBIT` | Earnings Before Interest and Taxes del año 0. | 15,000 |
+| | `Interest Expenses on Debt` | Intereses brutos causados o pagados por deuda (excluye partidas netas). | 1,258 |
 | | `Tax Rate (t)` | Tasa impositiva esperada (decimal). | 0.21 |
 | | `Invested Capital` | Capital invertido inicial. | 90,000 |
 | **Año Terminal** | `Terminal Year` | Año en el que se calcula el valor terminal. | 10 |

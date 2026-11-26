@@ -152,34 +152,33 @@ def run_auto_valuation(ticker_symbol, target_currency=None, company_name=None):
         f"La Beta de Yahoo Finance ({yahoo_beta:.4f}) se conserva como referencia informativa."
     )
 
-    # E. Interest expense fallback ─────────────────────────────────────────────
+    # E. Interest expense fallback (Strict Gross Debt Interest, No Net) ──────────
     interest_expense = raw_data.get('interes_expenses', 0.0)
-    interest_expense_source = "Yahoo Finance"
+    interest_expense_source = "Yahoo Finance (Gross Interest on Debt)" if interest_expense > 0 else ""
     interest_expense_note = ""
 
     if interest_expense == 0.0:
-        # Attempt SEC EDGAR 10-K fallback
-        print("   ⚠️ Gastos por intereses = 0. Intentando obtener desde SEC EDGAR...")
+        # Attempt SEC EDGAR / 10-K fallback (Strictly gross interest on debt, excluding any net items)
+        print("   ⚠️ Gastos por intereses brutos = 0 o no disponibles en Yahoo Finance. Consultando SEC EDGAR / Filings 10-K...")
         try:
             cik_for_int = get_cik_from_ticker(ticker_symbol)
-            if cik_for_int:
-                from sec_edgar_service import get_interest_expense_from_edgar
-                ie_sec = get_interest_expense_from_edgar(cik_for_int)
-                if ie_sec and ie_sec > 0:
-                    interest_expense = ie_sec
-                    interest_expense_source = "SEC EDGAR (10-K)"
-                    print(f"   -> Gastos por intereses obtenidos de SEC EDGAR: ${interest_expense:,.2f}M")
-                else:
-                    interest_expense_note = (
-                        "Los gastos por intereses no estaban disponibles en Yahoo Finance ni en SEC EDGAR. "
-                        "Se utilizó 0 como proxy, lo que puede subestimar el costo de la deuda si la empresa tiene deuda significativa. "
-                        "Se recomienda verificar el 10-K más reciente o estimar con base en cupones de bonos emitidos."
-                    )
-                    print(f"   -> No se encontraron gastos por intereses en EDGAR. {interest_expense_note}")
-        except (ImportError, Exception) as e:
+            from sec_edgar_service import get_interest_expense_from_edgar
+            ie_res = get_interest_expense_from_edgar(cik_for_int, ticker=ticker_symbol, company_name=long_name)
+            if isinstance(ie_res, dict) and ie_res.get('gross_interest', 0.0) > 0.0:
+                interest_expense = ie_res['gross_interest']
+                interest_expense_source = ie_res.get('source', "SEC Form 10-K (Debt Footnote)")
+                interest_expense_note = ie_res.get('note', f"Intereses brutos causados por deuda extraídos de SEC EDGAR / Filings: ${interest_expense:,.2f}M.")
+                print(f"   -> Gastos por intereses brutos de deuda obtenidos ({interest_expense_source}): ${interest_expense:,.2f}M")
+            else:
+                interest_expense_note = (
+                    "Los gastos por intereses brutos de la deuda no estaban reportados por separado en Yahoo Finance ni en los reportes regulatorios 10-K "
+                    "(se descartaron estrictamente partidas netas). Se utilizó 0 temporalmente; verificar los cupones de bonos o notas de deuda para ajustar el Cost of Debt."
+                )
+                print(f"   -> No se encontraron gastos brutos de deuda en EDGAR/10-K. {interest_expense_note}")
+        except Exception as e:
             interest_expense_note = (
-                "Los gastos por intereses no estaban reportados de forma separada en los datos disponibles. "
-                "Verificar el 10-K en SEC EDGAR o estimar con base en tasas/cupones de bonos emitidos si aplica."
+                "No se pudo consultar automáticamente la Nota de Deuda de SEC EDGAR. "
+                "Verificar manualmente el Form 10-K para el interés bruto causado por la deuda."
             )
             print(f"   -> Fallback SEC EDGAR no disponible: {e}")
 
@@ -560,10 +559,11 @@ $$\\beta_L = {unlevered_beta_corrected:.4f} \\times \\left[1 + (1 - {statutory_t
 
 ---
 
-## 6. Gastos por Intereses (Cost of Debt)
+## 6. Gastos por Intereses Causados por Deuda (Cost of Debt - Gross Interest)
 
-- **Fuente utilizada:** {interest_expense_source}
-- **Valor:** ${interest_expense:,.2f}M
+- **Fuente utilizada:** {interest_expense_source or 'No disponible'}
+- **Valor Bruto Imputado:** **${interest_expense:,.2f}M**
+- **Criterio de Exclusión de Cifras Netas:** Se prohíbe y excluye estrictamente el uso de partidas consolidadas netas (*Net Interest Income/Expense*) para evitar distorsiones en el cálculo del Costo de la Deuda ($K_d$) y del WACC.
 {int_note_md}
 
 ---

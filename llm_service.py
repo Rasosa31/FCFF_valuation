@@ -92,14 +92,21 @@ def get_llm_projections(
     # ── Resumen del negocio ───────────────────────────────────────────────────
     biz_summary_str = f"\nResumen Operativo / Descripción del Negocio:\n{business_summary[:1200]}..." if business_summary else ""
 
-    # ── Nota de gastos por intereses ──────────────────────────────────────────
+    # ── Nota de gastos por intereses (Gross Debt Interest, No Net) ────────────
     int_exp_note = ""
-    if interest_expense is not None and interest_expense == 0.0:
-        int_exp_note = (
-            "\n⚠️ NOTA GASTOS POR INTERESES: No se identificaron gastos por intereses separados en los datos base. "
-            "En 'interest_expense_note' explica que si la empresa tiene deuda financiera se debe consultar el 10-K "
-            "o estimar con cupones de bonos emitidos."
-        )
+    if interest_expense is not None:
+        if interest_expense > 0.0:
+            int_exp_note = (
+                f"\n- Gastos por intereses causados por la deuda (Gross, no net): ${interest_expense:,.2f}M (Fuente: {interest_expense_source or 'Filings regulatorios'}).\n"
+                f"Explica brevemente en 'interest_expense_note' que se utilizan exclusivamente los intereses causados o pagados por deuda financiera (interest-bearing debt) "
+                f"para determinar con precisión el Cost of Debt (Kd) y el WACC, descartando de forma estricta cualquier cifra neta o consolidada."
+            )
+        else:
+            int_exp_note = (
+                "\n⚠️ NOTA GASTOS POR INTERESES: No se identificaron gastos brutos por intereses separados en los datos base ni en filings (o se descartaron partidas netas). "
+                "En 'interest_expense_note' explica que si la empresa tiene deuda financiera se debe consultar la Nota de Deuda del 10-K "
+                "o estimar con base en cupones de bonos emitidos."
+            )
 
     full_prompt = f"""
 Eres un Director Senior de Valoración Fundamental y Corporate Finance de élite, especializado en el método FCFF (Free Cash Flow to Firm) de Aswath Damodaran.
@@ -400,4 +407,106 @@ Responde ÚNICAMENTE un objeto JSON válido con este formato:
         'unvested_psus_target': 0.0,
         'note': "Nota: No se pudo obtener información automatizada de unvested RSUs/PSUs.",
         'found': False
+    }
+
+
+def get_interest_expense_from_llm(ticker: str, company_name: str = "") -> dict:
+    """
+    Inquires Gemini models to extract gross interest expense caused or paid exclusively on
+    interest-bearing debt from the company's official SEC Form 10-K filings
+    (Note on Debt / Borrowings / Supplemental Cash Flow).
+    Strictly avoids any net interest figures (e.g. Net Interest Income or Net Non-Operating Expense).
+    Returns dict:
+      {
+         'gross_interest': float, # in millions of USD
+         'source': str,           # Form 10-K note description
+         'is_net': bool,          # False if gross interest on debt
+         'note': str
+      }
+    """
+    load_dotenv()
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        try:
+            import streamlit as st
+            api_key = st.secrets.get("GEMINI_API_KEY")
+        except Exception:
+            pass
+
+    if not api_key or api_key == "PEGA_AQUÍ_TU_API_KEY":
+        return {
+            'gross_interest': 0.0,
+            'source': "",
+            'is_net': False,
+            'note': "API Key no configurada para consulta automática de intereses SEC."
+        }
+
+    company_ref = f"{company_name} ({ticker})" if company_name else ticker
+
+    prompt = f"""
+Eres un analista experto en finanzas corporativas, auditoría contable y análisis de reportes SEC (Form 10-K y 10-Q).
+Para la compañía {company_ref}, analiza sus reportes oficiales presentados ante la SEC (más reciente Form 10-K) en la nota a los estados financieros sobre Deuda (Debt / Financing Arrangements / Senior Notes and Credit Facilities) o en la sección complementaria del Estado de Flujos de Efectivo (Cash paid for interest) y extrae:
+
+1. 'gross_interest_expense': Cantidad exacta de intereses brutos causados o pagados exclusivamente por la deuda financiera (interest-bearing debt) durante el último año fiscal completo, expresada en MILLONES DE DÓLARES (número flotante, ej: 1466.0 para $1,466 millones).
+REGLA INDISPENSABLE:
+- Está terminantemente PROHIBIDO utilizar cualquier cifra neta que contenga la palabra 'net' (como Net Interest Income, Net Non-Operating Interest o resultados netos de intereses compensados con rendimientos de tesorería).
+- Debe ser el gasto o pago bruto derivado de la deuda (préstamos bancarios, bonos sénior, notas emitidas, papel comercial).
+2. 'source': Cita precisa del formulario de la SEC y la nota de donde se extrajo (ej: "SEC Form 10-K para el año fiscal 2024, Nota 11 - Debt / Supplemental Cash Flow").
+3. 'is_net': Booleano. Asigna false si la cifra es estrictamente bruta de deuda. Asigna true únicamente si no hubo forma de separar y solo existía cifra neta.
+
+Responde ÚNICAMENTE un objeto JSON con este formato:
+{{
+    "gross_interest_expense": 1466.0,
+    "source": "Form 10-K Nota 11 - Debt...",
+    "is_net": false,
+    "note": "Texto explicativo detallando la cifra bruta y la deuda asociada..."
+}}
+"""
+
+    for model_name in GEMINI_MODELS:
+        try:
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
+            text = response.text.strip()
+            if text.startswith('```json'): text = text[7:]
+            elif text.startswith('```'): text = text[3:]
+            if text.endswith('```'): text = text[:-3]
+
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match: text = match.group(0)
+
+            data = json.loads(text)
+            gross_raw = data.get("gross_interest_expense")
+            gross = float(gross_raw) if gross_raw is not None else 0.0
+            source = str(data.get("source", "")).strip()
+            is_net = bool(data.get("is_net", False))
+            note = str(data.get("note", "")).strip()
+
+            if is_net:
+                print(f"   ⚠️ La cifra de intereses detectada contenía componente 'Net', descartándola.")
+                return {
+                    'gross_interest': 0.0,
+                    'source': "",
+                    'is_net': True,
+                    'note': "Cifra descartada por contener 'Net'."
+                }
+
+            return {
+                'gross_interest': round(gross, 2),
+                'source': source,
+                'is_net': False,
+                'note': note or f"Gasto por intereses de deuda obtenido de {source}: ${gross:,.2f}M."
+            }
+        except Exception as e:
+            print(f"⚠️ Error al consultar intereses brutos con {model_name}: {e}")
+
+    return {
+        'gross_interest': 0.0,
+        'source': "",
+        'is_net': False,
+        'note': "No se pudo extraer el interés bruto de los filings SEC."
     }
