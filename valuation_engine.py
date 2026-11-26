@@ -109,7 +109,12 @@ def calculate_valuation(inputs):
         ebit.append(ingresos[i+2] * op_margin_list[i]) # Año 1-10
     ebit.append(ingresos[-1] * inputs['terminal_operating_margin']) # Terminal
     
-    margen_operacional = [0, 0] + op_margin_list + [inputs['terminal_operating_margin']]
+    # Calcular el margen operativo real para Año 0 y Año 0A (EBIT / Ingresos)
+    # Año 0
+    margin_year0 = inputs['income_base_year'] / ingresos[0] if ingresos[0] != 0 else 0.0
+    # Año 0A (incluye ajuste de I+D)
+    margin_year0A = (inputs['income_base_year'] + rd_income_adjust) / ingresos[1] if ingresos[1] != 0 else 0.0
+    margen_operacional = [margin_year0, margin_year0A] + op_margin_list + [inputs['terminal_operating_margin']]
     
     df["Operating_margin"] = margen_operacional
     df["Operating_income"] = ebit
