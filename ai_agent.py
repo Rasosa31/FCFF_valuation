@@ -1,7 +1,7 @@
 import pandas as pd
 from yfinance_service import get_financial_data
 from damodaran_service import get_damodaran_metrics, get_damodaran_erp
-from sec_edgar_service import get_cik_from_ticker, get_options_data
+from sec_edgar_service import get_cik_from_ticker, get_options_data, get_options_and_unvested_data
 from llm_service import get_llm_projections
 from valuation_engine import calculate_valuation
 import yfinance as yf
@@ -183,22 +183,27 @@ def run_auto_valuation(ticker_symbol, target_currency=None, company_name=None):
             )
             print(f"   -> Fallback SEC EDGAR no disponible: {e}")
 
-    # E. SEC Options data ──────────────────────────────────────────────────────
-    print("   -> Contactando SEC EDGAR (Búsqueda de Stock Options/RSUs)...")
+    # E. SEC Options & Unvested Equity (RSUs / PSUs) data ─────────────────────────
+    print("   -> Contactando SEC EDGAR y filings (Stock Options, Unvested RSUs y PSUs)...")
     cik = get_cik_from_ticker(ticker_symbol)
-    if cik:
-        sec_options = get_options_data(cik)
-        opt_shares   = sec_options['option_shares_millions']
-        opt_strike   = sec_options['strike_price']
-        opt_maturity = sec_options['option_maturity']
-        if opt_shares > 0 and opt_strike > 0:
-            print(f"   -> Opciones encontradas: {opt_shares}M shares | Strike: ${opt_strike} | Vencimiento: {opt_maturity}y")
-        else:
-            opt_shares = opt_strike = opt_maturity = 0.0
-            print("   -> Sin Opciones detectadas en XBRL.")
+    equity_awards = get_options_and_unvested_data(cik, ticker=ticker_symbol, company_name=long_name)
+    opt_shares    = equity_awards['option_shares_millions']
+    opt_strike    = equity_awards['strike_price']
+    opt_maturity  = equity_awards['option_maturity']
+    unvested_rsus = equity_awards['unvested_rsus']
+    unvested_psus = equity_awards['unvested_psus_target']
+    unvested_note = equity_awards['note']
+
+    if opt_shares > 0 and opt_strike > 0:
+        print(f"   -> Opciones encontradas: {opt_shares}M shares | Strike: ${opt_strike} | Vencimiento: {opt_maturity}y")
     else:
         opt_shares = opt_strike = opt_maturity = 0.0
-        print("   -> CIK no encontrado, saltando extracción EDGAR.")
+        print("   -> Sin Opciones detectadas en XBRL.")
+
+    if unvested_rsus > 0 or unvested_psus > 0:
+        print(f"   -> Unvested RSUs: {unvested_rsus:,.2f}M | Unvested PSUs Target: {unvested_psus:,.2f}M")
+    else:
+        print(f"   -> {unvested_note}")
 
     # F. Historical revenue & margin series ───────────────────────────────────
     revenue_history = _build_revenue_history(ticker_symbol)
@@ -344,9 +349,12 @@ Los datos históricos reflejan la presión de inversiones recientes y gastos de 
         'yahoo_beta':               yahoo_beta,
         'ERP':                      damodaran_erp,
         'shares_outstanding':       raw_data['shares_outstanding'],
+        'unvested_rsus':            unvested_rsus,
+        'unvested_psus_target':     unvested_psus,
+        'diluted_shares_adjusted':  round(raw_data['shares_outstanding'] + unvested_rsus + unvested_psus, 4),
         'current_share_price':      raw_data['current_share_price'],
         'av_maturity_of_debt':      5.0,
-        'options_calc_method':      "Black Scholes de la App" if opt_shares > 0 and opt_strike > 0 else "Digitar Valor Estimado",
+        'options_calc_method':      "Usar Black-Scholes" if opt_shares > 0 and opt_strike > 0 else "Digitar Valor Estimado",
         'manual_options_value':     0.0,
         'option_shares':            opt_shares,
         'strike_price':             opt_strike,
@@ -399,6 +407,9 @@ Los datos históricos reflejan la presión de inversiones recientes y gastos de 
         "terminal_stcr_input":  "",
         "terminal_wacc_input":  "",
         "shares":               inputs['shares_outstanding'],
+        "unvested_rsus":        inputs['unvested_rsus'],
+        "unvested_psus_target": inputs['unvested_psus_target'],
+        "diluted_shares_adjusted": inputs['diluted_shares_adjusted'],
         "price":                inputs['current_share_price'],
         "beta_source":          "Beta Damodaran (Unlevered Cash-Corrected apalancada por D/MCap)",
         "beta_calc_method":     "Beta Damodaran (Relevered)",
@@ -562,9 +573,21 @@ $$\\beta_L = {unlevered_beta_corrected:.4f} \\times \\left[1 + (1 - {statutory_t
 - **País:** {country}
 - **Tasa aplicada:** **{statutory_tax:.2%}** (tasa legal marginal para proyección a largo plazo)
 
+## 8. Estructura Accionaria y Acciones Diluidas Ajustadas (Diluted Shares Adjusted)
+
+| Concepto Accionario | Millones de Acciones |
+|---|:---:|
+| Acciones Básicas en Circulación (Shares Outstanding) | {raw_data['shares_outstanding']:,.2f}M |
+| (+) Unvested RSUs (Restricted Stock Units) | {unvested_rsus:,.2f}M |
+| (+) Unvested PSUs Target (Performance Stock Units) | {unvested_psus:,.2f}M |
+| **(=) Diluted Shares Adjusted (Base de Valor por Acción)** | **{results['diluted_shares_adjusted']:,.2f}M** |
+
+> 📌 **Auditoría de Compensación Basada en Acciones:**  
+> {unvested_note}
+
 ---
 
-## 8. Resultados de Valoración
+## 9. Resultados de Valoración
 
 | Métrica | Valor |
 |---|---|

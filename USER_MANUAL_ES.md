@@ -31,6 +31,10 @@ Esta aplicación permite estimar el valor de una empresa mediante el método **F
    ```
    La app se abrirá automáticamente en el navegador en la dirección `http://localhost:8501`.
 
+   Desde la terminal, sin necesidad de lnzar la aplicación:
+
+   python3 ai_agent.py DELL
+
 ## 4. Descripción de la Interfaz
 La aplicación se compone de una barra lateral (sidebar) con diversas secciones y una zona principal con pestañas.
 
@@ -46,11 +50,14 @@ La aplicación se compone de una barra lateral (sidebar) con diversas secciones 
 | **Costo de Capital** | `Risk‑Free Rate (RFR)` | Tasa libre de riesgo. | 0.025 |
 | | `Equity Risk Premium (ERP)` | Prima de riesgo de capital. | 0.055 |
 | | `Beta` | Beta del mercado (si está fuera del rango 0.5‑2.0 se sustituye por el beta sectorial). | – |
-| **Mercado & Acciones** | `Shares Outstanding` | Número total de acciones. | 1,000,000 |
+| **Mercado & Acciones** | `Shares Outstanding` | Número básico de acciones en circulación (en millones). | 1,000 |
+| | `Unvested RSUs` | Unidades de acciones restringidas comprometidas no devengadas (en millones). | 0 |
+| | `Unvested PSUs Target` | Unidades de acciones por desempeño no devengadas al target (en millones). | 0 |
+| | `Diluted Shares Adjusted` | Total acciones diluidas ajustadas (`Shares Outstanding + RSUs + PSUs`). | 1,000 |
 | | `Current Share Price` | Precio actual de la acción. | 50 |
 | **Gastos de I+D** | `R&D Expense` | Gasto anual de investigación y desarrollo. | 0 |
-| **Deuda & Opciones** | `Debt` | Deuda neta. | 0 |
-| | `Option Value` | Valor de opciones sobre la empresa. | 0 |
+| **Deuda & Opciones** | `Debt` | Deuda financiera bruta. | 0 |
+| | `Option Value` | Valor de opciones sobre la empresa (Black-Scholes). | 0 |
 
 > **Nota:** Todos los campos aceptan valores decimales o porcentuales según corresponda. La nueva variable **`g`** representa la tasa de crecimiento terminal y se utiliza en varios cálculos (valor terminal, reinversión, descuento).
 
@@ -69,8 +76,10 @@ La aplicación se compone de una barra lateral (sidebar) con diversas secciones 
 6. Exportar los resultados mediante los botones **Download Excel** o **Save JSON** para compartir o guardar la valoración.
 
 ## 6. Interpretación de Resultados
-- **Valor de la Firma (Enterprise Value)**: valor total de la empresa antes de considerar deuda y efectivo.
-- **Valor por Acción (Equity Value / Shares)**: precio implícito de cada acción.
+- **Enterprise Value (EV)**: Valor intrínseco de los activos operativos del negocio en marcha obtenido de descontar los flujos de caja operativos (FCFF) al WACC.
+- **Valor de la Firma (Firm Value)**: Valor total de todos los activos de la empresa (`Enterprise Value + Caja + Activos No Operativos`).
+- **Valor por Acción (Value of Equity in Common Stock / Diluted Shares Adjusted)**: Precio intrínseco estimado de cada acción considerando la dilución por unvested RSUs y unvested PSUs.
+- **Acciones Diluidas Ajustadas (Diluted Shares Adjusted)**: Base accionaria total para el cálculo del valor por acción (`Shares Outstanding + Unvested RSUs + Unvested PSUs Target`).
 - **Valor Terminal**: valor presente de los flujos de caja después del año terminal, calculado como `Terminal CF / (WACC - g)`.
 - **WACC**: Costo medio ponderado de capital, combinación de costo de deuda y costo de capital propio.
 - **ROIC**: **Return on Invested Capital** calculado ahora como `EBIT(1‑t) / Inv_Capital` **del mismo año** (sin retraso). Esta columna se muestra en la tabla de resultados.

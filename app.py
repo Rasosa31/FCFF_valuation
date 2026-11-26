@@ -76,9 +76,15 @@ def to_excel(df, results, inputs, company_name, valuation_date):
 
             {"Paso": "Value of Equity in Common Stock", "Fórmula": "= Equidad en Acciones Comunes", "Valor": round(results['value_in_common_stock'], 2)},
 
-            {"Paso": "Number of outstanding shares", "Fórmula": "Acciones en Circulación", "Valor": round(inputs['shares_outstanding'], 2)},
+            {"Paso": "Number of outstanding shares", "Fórmula": "Acciones Básicas", "Valor": round(inputs['shares_outstanding'], 2)},
 
-            {"Paso": "Estimated value / share", "Fórmula": "Value / Shares", "Valor": round(results['value_per_share'], 2)},
+            {"Paso": "(+) Unvested RSUs", "Fórmula": "+ Unvested RSUs", "Valor": round(inputs.get('unvested_rsus', 0.0), 2)},
+
+            {"Paso": "(+) Unvested PSUs Target", "Fórmula": "+ Unvested PSUs", "Valor": round(inputs.get('unvested_psus_target', 0.0), 2)},
+
+            {"Paso": "(=) Diluted Shares Adjusted", "Fórmula": "= Total Acciones Diluidas", "Valor": round(results.get('diluted_shares_adjusted', inputs['shares_outstanding']), 2)},
+
+            {"Paso": "Estimated value / share", "Fórmula": "Value / Diluted Shares", "Valor": round(results['value_per_share'], 2)},
 
             {"Paso": "Current Price of the stock", "Fórmula": "Precio actual", "Valor": round(inputs['current_share_price'], 2)}
 
@@ -711,7 +717,21 @@ else:
 
 st.sidebar.subheader("5. Market & Shares")
 
-shares_outstanding = float_input("Shares Outstanding", 2941.6, "shares", format="%.1f")
+shares_outstanding = float_input("Shares Outstanding (M)", 2941.6, "shares", format="%.2f")
+
+unvested_rsus = float_input("Unvested RSUs (M)", 0.0, "unvested_rsus", format="%.2f")
+
+unvested_psus_target = float_input("Unvested PSUs Target (M)", 0.0, "unvested_psus_target", format="%.2f")
+
+# Cálculo automático de Diluted Shares Adjusted (suma de básicas + RSUs + PSUs)
+calc_diluted = round(shares_outstanding + unvested_rsus + unvested_psus_target, 4)
+if "diluted_shares_adjusted" not in st.session_state:
+    st.session_state["diluted_shares_adjusted"] = float(calc_diluted)
+elif st.session_state.get("_last_calc_diluted") != calc_diluted:
+    st.session_state["diluted_shares_adjusted"] = float(calc_diluted)
+    st.session_state["_last_calc_diluted"] = calc_diluted
+
+diluted_shares_adjusted = float_input("Diluted Shares Adjusted (M)", calc_diluted, "diluted_shares_adjusted", format="%.2f")
 
 current_share_price = float_input("Current Share Price", 12.7, "price", format="%.2f")
 
@@ -791,6 +811,9 @@ inputs = {
     'terminal_stcr_input': terminal_stcr_input,
 
     'shares_outstanding': shares_outstanding,
+    'unvested_rsus': unvested_rsus,
+    'unvested_psus_target': unvested_psus_target,
+    'diluted_shares_adjusted': diluted_shares_adjusted,
 
     'current_share_price': current_share_price,
     'levered_beta': levered_beta,
@@ -1237,9 +1260,15 @@ if 'df' in st.session_state and 'results' in st.session_state:
 
             {"Paso": "Value of Equity in Common Stock", "Fórmula": "= Equidad en Acciones Comunes", "Valor": f"${results['value_in_common_stock']:,.0f}"},
 
-            {"Paso": "Number of outstanding shares", "Fórmula": "Acciones en Circulación", "Valor": f"{inputs['shares_outstanding']:,.2f}"},
+            {"Paso": "Number of outstanding shares", "Fórmula": "Acciones Básicas en Circulación", "Valor": f"{inputs['shares_outstanding']:,.2f} M"},
 
-            {"Paso": "Estimated value / share", "Fórmula": "Value of Equity in Common Stock / Shares", "Valor": f"${results['value_per_share']:,.2f}"},
+            {"Paso": "(+) Unvested RSUs", "Fórmula": "+ Unvested Restricted Stock Units", "Valor": f"{inputs.get('unvested_rsus', 0.0):,.2f} M"},
+
+            {"Paso": "(+) Unvested PSUs Target", "Fórmula": "+ Unvested Performance Stock Units (Target)", "Valor": f"{inputs.get('unvested_psus_target', 0.0):,.2f} M"},
+
+            {"Paso": "(=) Diluted Shares Adjusted", "Fórmula": "= Total Acciones Diluidas Ajustadas", "Valor": f"{results.get('diluted_shares_adjusted', inputs['shares_outstanding']):,.2f} M"},
+
+            {"Paso": "Estimated value / share", "Fórmula": "Value of Equity in Common Stock / Diluted Shares Adjusted", "Valor": f"${results['value_per_share']:,.2f}"},
 
             {"Paso": "Current Price of the stock", "Fórmula": "Precio actual de mercado", "Valor": f"${inputs['current_share_price']:,.2f}"}
 

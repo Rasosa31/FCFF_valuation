@@ -2,7 +2,7 @@ import requests
 import pandas as pd
 import math
 
-SEC_HEADERS = {"User-Agent": "Antigravity Agent (rasosa2001@gmail.com)"}
+SEC_HEADERS = {"User-Agent": "Antigravity Valuation Tool rasosa2001@gmail.com"}
 
 def get_cik_from_ticker(ticker):
     """
@@ -45,6 +45,32 @@ def extract_latest_value(facts, tags):
             except Exception:
                 pass
     return 0.0
+
+def get_interest_expense_from_edgar(cik):
+    """
+    Attempts to extract Interest Expense from SEC EDGAR company facts.
+    Returns float (in millions of USD) or None.
+    """
+    if not cik:
+        return None
+    url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
+    try:
+        res = requests.get(url, headers=SEC_HEADERS, timeout=10)
+        if res.status_code != 200:
+            return None
+        us_gaap = res.json().get('facts', {}).get('us-gaap', {})
+        tags = [
+            'InterestExpense',
+            'InterestAndDebtExpense',
+            'InterestExpenseDebt',
+            'InterestExpenseNet'
+        ]
+        val = extract_latest_value(us_gaap, tags)
+        if val > 0:
+            return round(val / 1_000_000, 2)
+    except Exception:
+        pass
+    return None
 
 def get_options_data(cik):
     """
@@ -122,3 +148,44 @@ def get_options_data(cik):
         print(f"Error fetching SEC Company Facts: {e}")
         
     return result
+
+
+def get_options_and_unvested_data(cik, ticker=None, company_name=None):
+    """
+    Retrieves employee stock options (from SEC EDGAR XBRL) and unvested RSUs / PSUs
+    (via SEC filings and LLM analysis of Stock-Based Compensation disclosures).
+    Generates an explicit note when no options, RSUs or PSUs are disclosed.
+    """
+    options_data = get_options_data(cik) if cik else {
+        'option_shares_millions': 0.0,
+        'strike_price': 0.0,
+        'option_maturity': 0.0
+    }
+    
+    unvested_info = {'unvested_rsus': 0.0, 'unvested_psus_target': 0.0, 'note': '', 'found': False}
+    if ticker:
+        try:
+            from llm_service import get_unvested_equity_from_llm
+            unvested_info = get_unvested_equity_from_llm(ticker, company_name=company_name or "")
+        except Exception as e:
+            print(f"⚠️ Error al consultar unvested RSUs/PSUs: {e}")
+
+    has_options = (options_data.get('option_shares_millions', 0.0) > 0 and options_data.get('strike_price', 0.0) > 0)
+    has_rsus = (unvested_info.get('unvested_rsus', 0.0) > 0)
+    has_psus = (unvested_info.get('unvested_psus_target', 0.0) > 0)
+    has_any = (has_options or has_rsus or has_psus)
+
+    if not has_any:
+        unvested_note = "Nota: No se identificó información reportada sobre employee options, ni unvested RSUs, ni unvested PSUs en los reportes regulatorios (10-K/10-Q/DEF 14A) de la empresa."
+    else:
+        unvested_note = unvested_info.get('note', '')
+
+    return {
+        'option_shares_millions': options_data.get('option_shares_millions', 0.0),
+        'strike_price': options_data.get('strike_price', 0.0),
+        'option_maturity': options_data.get('option_maturity', 0.0),
+        'unvested_rsus': unvested_info.get('unvested_rsus', 0.0),
+        'unvested_psus_target': unvested_info.get('unvested_psus_target', 0.0),
+        'has_any_equity_awards': has_any,
+        'note': unvested_note
+    }

@@ -257,8 +257,17 @@ def calculate_valuation(inputs):
     # Value of equity in common stock
     value_in_common_stock = value_of_equity - value_option
     
-    # Estimated value / share
-    value_per_share = value_in_common_stock / inputs['shares_outstanding'] if inputs['shares_outstanding'] > 0 else 0
+    # Estimated value / share based on Diluted Shares Adjusted (Shares Outstanding + Unvested RSUs + Unvested PSUs)
+    shares_base = float(inputs.get('shares_outstanding', 0.0))
+    unvested_rsus = float(inputs.get('unvested_rsus', 0.0))
+    unvested_psus = float(inputs.get('unvested_psus_target', 0.0))
+    diluted_shares = float(inputs.get('diluted_shares_adjusted', 0.0))
+    if diluted_shares <= 0.0:
+        diluted_shares = shares_base + unvested_rsus + unvested_psus
+    if diluted_shares <= 0.0:
+        diluted_shares = shares_base
+
+    value_per_share = value_in_common_stock / diluted_shares if diluted_shares > 0 else 0
     
     # Enterprise Value (Operating assets) and Firm Value (Total assets: Operating + Cash + Non-operating)
     enterprise_value = value_of_operating_assets
@@ -280,6 +289,10 @@ def calculate_valuation(inputs):
         'value_of_equity': value_of_equity,
         'value_in_common_stock': value_in_common_stock,
         'firm_value': firm_value,
+        'shares_outstanding': shares_base,
+        'unvested_rsus': unvested_rsus,
+        'unvested_psus_target': unvested_psus,
+        'diluted_shares_adjusted': diluted_shares,
         'value_per_share': value_per_share,
         'invested_capital_base': invested_capital_base,
         'invested_capital_adj': invested_capital_adj,
@@ -315,8 +328,11 @@ def run_montecarlo_sim(inputs, wacc_base, n_simulaciones=5000, margen_ebit_std=0
     np.random.seed(42)
     anios = 10
     ingresos_iniciales = inputs['revenue_base_year']
-    deuda_neta = inputs['debt_base_year'] - inputs['cash_base_year'] + inputs['minority_interes'] - inputs['non_operating_assets']
-    acciones = inputs['shares_outstanding']
+    acciones = float(inputs.get('diluted_shares_adjusted', 0.0))
+    if acciones <= 0.0:
+        acciones = float(inputs.get('shares_outstanding', 0.0)) + float(inputs.get('unvested_rsus', 0.0)) + float(inputs.get('unvested_psus_target', 0.0))
+    if acciones <= 0.0:
+        acciones = float(inputs.get('shares_outstanding', 1.0))
     
     agr_rate_list = inputs['agr_rate'] if isinstance(inputs['agr_rate'], list) else [inputs['agr_rate']] * 10
     op_margin_list = inputs['op_margin'] if isinstance(inputs['op_margin'], list) else [inputs['op_margin']] * 10

@@ -312,3 +312,92 @@ El nombre debe ser IDÉNTICO a uno de la lista.
             print(f"⚠️ Error al consultar industria con {model_name}: {e}")
 
     return yf_industry
+
+
+def get_unvested_equity_from_llm(ticker: str, company_name: str = "") -> dict:
+    """
+    Inquires Gemini models to retrieve unvested RSUs (Restricted Stock Units) and
+    unvested PSUs (Performance Stock Units at target) from the company's official SEC filings
+    (Form 10-K, 10-Q, DEF 14A Note on Stock-Based Compensation).
+    Returns dict:
+      {
+         'unvested_rsus': float,        # in millions of shares
+         'unvested_psus_target': float, # in millions of shares
+         'note': str,                   # description of source & disclosures
+         'found': bool
+      }
+    """
+    load_dotenv()
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        try:
+            import streamlit as st
+            api_key = st.secrets.get("GEMINI_API_KEY")
+        except Exception:
+            pass
+
+    if not api_key or api_key == "PEGA_AQUÍ_TU_API_KEY":
+        return {
+            'unvested_rsus': 0.0,
+            'unvested_psus_target': 0.0,
+            'note': "API Key no configurada para consulta automática de unvested RSUs/PSUs.",
+            'found': False
+        }
+
+    company_ref = f"{company_name} ({ticker})" if company_name else ticker
+
+    prompt = f"""
+Eres un analista experto en auditoría contable y análisis de reportes SEC (10-K, 10-Q y Proxy Statement DEF 14A).
+Para la compañía {company_ref}, analiza la nota a los estados financieros sobre Compensación Basada en Acciones (Stock-Based Compensation / Share-Based Payment Plans / Stock Incentive Plans) de su más reciente Form 10-K / 10-Q y extrae con máxima precisión la información de premios de capital comprometidos pero NO devengados (UNVESTED / NONVESTED):
+
+1. 'unvested_rsus': Cantidad de Restricted Stock Units (RSUs) unvested / nonvested comprometidas al cierre del último ejercicio reportado, expresada en MILLONES DE ACCIONES (número flotante, ej: 14.5 para 14,500,000 unidades). Si no tiene o no reporta, indica 0.0.
+2. 'unvested_psus_target': Cantidad de Performance Stock Units (PSUs) o Performance Shares unvested / nonvested a nivel objetivo (target) al cierre del último ejercicio reportado, expresada en MILLONES DE ACCIONES (número flotante, ej: 5.5 para 5,500,000 unidades). Si la empresa no otorga PSUs o no tiene, indica 0.0.
+3. 'note': Explicación detallada indicando la fuente oficial (Formulario 10-K/10-Q, año fiscal, nota específica a los estados financieros) y cómo reporta la compañía sus RSUs y PSUs. Si la empresa NO tiene opciones para empleados, ni RSUs, ni PSUs, indícalo expresamente.
+
+Responde ÚNICAMENTE un objeto JSON válido con este formato:
+{{
+    "unvested_rsus": 14.5,
+    "unvested_psus_target": 5.5,
+    "note": "Texto explicativo detallando la fuente en el 10-K..."
+}}
+"""
+
+    for model_name in GEMINI_MODELS:
+        try:
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
+            text = response.text.strip()
+            if text.startswith('```json'): text = text[7:]
+            elif text.startswith('```'): text = text[3:]
+            if text.endswith('```'): text = text[:-3]
+
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match: text = match.group(0)
+
+            data = json.loads(text)
+            rsu_raw = data.get("unvested_rsus")
+            psu_raw = data.get("unvested_psus_target")
+            rsus = float(rsu_raw) if rsu_raw is not None else 0.0
+            psus = float(psu_raw) if psu_raw is not None else 0.0
+            note = str(data.get("note", "")).strip()
+            found = (rsus > 0.0 or psus > 0.0)
+
+            return {
+                'unvested_rsus': round(rsus, 4),
+                'unvested_psus_target': round(psus, 4),
+                'note': note,
+                'found': found
+            }
+        except Exception as e:
+            print(f"⚠️ Error al consultar unvested shares con {model_name}: {e}")
+
+    return {
+        'unvested_rsus': 0.0,
+        'unvested_psus_target': 0.0,
+        'note': "Nota: No se pudo obtener información automatizada de unvested RSUs/PSUs.",
+        'found': False
+    }

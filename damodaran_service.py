@@ -195,7 +195,11 @@ def get_damodaran_metrics(query_industry):
     try:
         print("   -> Contactando NYU Stern (Damodaran Sales to Capital)...")
         stcr_url = "https://pages.stern.nyu.edu/~adamodar/pc/datasets/mgnroc.xls"
-        stcr_df = pd.read_excel(stcr_url, sheet_name="Industry Averages", skiprows=8)
+        resp = requests.get(stcr_url, timeout=5)
+        if resp.status_code == 200:
+            stcr_df = pd.read_excel(io.BytesIO(resp.content), sheet_name="Industry Averages", skiprows=8)
+        else:
+            stcr_df = pd.DataFrame()
 
         stcr_ind_col = stcr_df.columns[0]
         damodaran_stcr_industries = (
